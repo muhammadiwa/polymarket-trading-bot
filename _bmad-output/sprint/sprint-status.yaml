@@ -1,0 +1,100 @@
+# generated: 2026-07-03
+# last_updated: 2026-07-03T12:00:00Z
+# project: Polymarket Quant Arbitrage Platform (PQAP)
+# project_key: PQAP
+# tracking_system: file-system
+# story_location: _bmad-output/epics
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+generated: 2026-07-03
+last_updated: 2026-07-03
+project: Polymarket Quant Arbitrage Platform (PQAP)
+project_key: PQAP
+tracking_system: file-system
+story_location: _bmad-output/epics
+
+development_status:
+  # Epic 1: Foundation — Bot Can Hunt
+  epic-1: in-progress
+  1-1-scanner-websocket-connection-market-catalog: done
+  1-2-market-scanner-stale-detection-reconnect-batching: done
+  1-3-arbitrage-detection-opportunity-scoring: done
+  1-4-execution-engine-order-placement-slippage-protection: done
+  1-5-execution-engine-atomic-yes-no-circuit-breaker: done
+  1-6-position-tracking-pnl-calculation: done
+  1-7-risk-management-pit-boss-daily-budget: done
+  1-8-risk-management-emergency-stop-drawdown-breaker: done
+  1-9-trade-history-recording: done
+  1-10-telegram-notifications: done
+  epic-1-retrospective: optional
+
+  # Epic 2: Risk Shield & Monitoring
+  epic-2: backlog
+  2-1-advanced-risk-correlation-limits-batasi-win-metabolic-rate: backlog
+  2-2-dashboard-portfolio-overview-position-display: backlog
+  2-3-dashboard-risk-status-quick-actions: backlog
+  2-4-dashboard-system-health-opportunity-feed: backlog
+  2-5-notification-preferences-throttling: backlog
+  2-6-admin-authentication-scanner-metrics-export: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Advanced Hunting Strategies
+  epic-3: backlog
+  3-1-cross-market-arbitrage-detection: backlog
+  3-2-strategy-manager-crud-activation: backlog
+  3-3-strategy-manager-versioning-capital-allocation-weights: backlog
+  3-4-multi-strategy-isolation-capital-allocation: backlog
+  3-5-portfolio-strategy-allocation-tier-adjustment-utilization: backlog
+  3-6-advanced-arb-correlation-detection-opportunity-logging: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Intelligence & Analytics
+  epic-4: backlog
+  4-1-analytics-pnl-performance-metrics: backlog
+  4-2-analytics-charts-csv-export: backlog
+  4-3-analytics-anomaly-detection: backlog
+  4-4-trade-history-filtering-export: backlog
+  4-5-orderbook-viewer-real-time-display-depth-chart: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Backtesting & Paper Trading
+  epic-5: backlog
+  5-1-backtesting-engine-replay-simulation: backlog
+  5-2-backtesting-metrics-reports-parameter-sweeps: backlog
+  5-3-paper-trading-simulation-separate-pnl: backlog
+  5-4-paper-trading-seamless-live-switch: backlog
+  5-5-replay-mode-speed-control-decision-display: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: AI Strategy Optimization
+  epic-6: backlog
+  6-1-ai-optimizer-pattern-analysis-suggestions: backlog
+  6-2-ai-optimizer-ab-testing-overfitting-detection: backlog
+  6-3-ai-assistant-performance-qa-decision-explanation: backlog
+  6-4-ai-assistant-read-only-safety-risk-parameter-suggestions: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Scaling & Enterprise
+  epic-7: backlog
+  7-1-multi-account-wallet-configuration-isolation: backlog
+  7-2-multi-account-cross-account-view-per-account-risk: backlog
+  7-3-admin-panel-system-configuration-health-dashboard: backlog
+  7-4-admin-panel-log-viewer-database-management: backlog
+  epic-7-retrospective: optional
