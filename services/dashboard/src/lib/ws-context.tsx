@@ -1,0 +1,78 @@
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createWSClient, type WSStatus } from "@/lib/websocket";
+import type { WSMessage, PortfolioOverview, Position, RiskStatus, SystemHealth, Opportunity } from "@/types";
+
+type OpportunityListener = (opp: Opportunity) => void;
+
+interface WSContextValue {
+  portfolioData: PortfolioOverview | null;
+  positionData: Position[] | null;
+  riskData: RiskStatus | null;
+  healthData: SystemHealth | null;
+  wsStatus: WSStatus;
+  onOpportunity: (listener: OpportunityListener) => () => void;
+}
+
+const WSContext = createContext<WSContextValue>({
+  portfolioData: null,
+  positionData: null,
+  riskData: null,
+  healthData: null,
+  wsStatus: "disconnected",
+  onOpportunity: () => () => {},
+});
+
+export function useWSContext() {
+  return useContext(WSContext);
+}
+
+export function WSProvider({ children }: { children: ReactNode }) {
+  const [portfolioData, setPortfolioData] = useState<PortfolioOverview | null>(null);
+  const [positionData, setPositionData] = useState<Position[] | null>(null);
+  const [riskData, setRiskData] = useState<RiskStatus | null>(null);
+  const [healthData, setHealthData] = useState<SystemHealth | null>(null);
+  const [wsStatus, setWsStatus] = useState<WSStatus>("disconnected");
+  const clientRef = useRef<ReturnType<typeof createWSClient> | null>(null);
+  const opportunityListeners = useRef<Set<OpportunityListener>>(new Set());
+
+  const onOpportunity = useCallback((listener: OpportunityListener) => {
+    opportunityListeners.current.add(listener);
+    return () => {
+      opportunityListeners.current.delete(listener);
+    };
+  }, []);
+
+  useEffect(() => {
+    clientRef.current = createWSClient({
+      onMessage: (message: WSMessage) => {
+        if (message.type === "portfolio_update") {
+          setPortfolioData(message.payload as PortfolioOverview);
+        } else if (message.type === "position_update") {
+          setPositionData(message.payload as Position[]);
+        } else if (message.type === "risk_update") {
+          setRiskData(message.payload as RiskStatus);
+        } else if (message.type === "health_update") {
+          setHealthData(message.payload as SystemHealth);
+        } else if (message.type === "opportunity") {
+          const opp = message.payload as Opportunity;
+          for (const listener of opportunityListeners.current) {
+            listener(opp);
+          }
+        }
+      },
+      onStatusChange: setWsStatus,
+    });
+
+    return () => {
+      clientRef.current?.close();
+    };
+  }, []);
+
+  return (
+    <WSContext.Provider value={{ portfolioData, positionData, riskData, healthData, wsStatus, onOpportunity }}>
+      {children}
+    </WSContext.Provider>
+  );
+}
