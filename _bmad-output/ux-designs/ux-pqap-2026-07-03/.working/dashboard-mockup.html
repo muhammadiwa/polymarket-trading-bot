@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PQAP — Predator Quantitative Arbitrage Protocol</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #1a1f2e;
+  --glass: rgba(255,255,255,0.05);
+  --glass-border: rgba(255,255,255,0.1);
+  --profit: #00ff88;
+  --loss: #ff4757;
+  --accent: #00d4ff;
+  --text-primary: #ffffff;
+  --text-secondary: #8892a4;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', -apple-system, sans-serif;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Ambient gradient orbs */
+body::after {
+  content: '';
+  position: fixed;
+  top: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(0,212,255,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ─── Layout ─── */
+.app {
+  display: grid;
+  grid-template-rows: 56px 1fr 40px;
+  grid-template-columns: 220px 1fr;
+  height: 100vh;
+}
+
+/* ─── Top Bar ─── */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  background: rgba(26,31,46,0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--glass-border);
+  z-index: 10;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, var(--accent), #0066ff);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  box-shadow: 0 0 20px rgba(0,212,255,0.3);
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba(0,255,136,0.1);
+  border: 1px solid rgba(0,255,136,0.2);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--profit);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--profit);
+  border-radius: 50%;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(0,255,136,0.4); }
+  50% { box-shadow: 0 0 12px rgba(0,255,136,0.8); }
+}
+
+.topbar-stats {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  margin-left: auto;
+}
+
+.stat-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.stat-value {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.stat-value.profit { color: var(--profit); }
+.stat-value.loss { color: var(--loss); }
+
+.btn-emergency {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #ff4757, #ff2233);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(255,71,87,0.3);
+  transition: all 0.2s;
+}
+
+.btn-emergency:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255,71,87,0.5);
+}
+
+/* ─── Sidebar ─── */
+.sidebar {
+  background: rgba(16,20,30,0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--glass-border);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.nav-item:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.04);
+}
+
+.nav-item.active {
+  color: var(--text-primary);
+  background: rgba(0,212,255,0.08);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.nav-item.active .nav-icon { opacity: 1; }
+
+/* ─── Main Content ─── */
+.main {
+  padding: 20px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 16px;
+  align-content: start;
+}
+
+/* ─── Glass Card ─── */
+.card {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.card-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--glass-border);
+}
+
+/* ─── Portfolio Card ─── */
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.portfolio-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.portfolio-stat .label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.portfolio-stat .value {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.portfolio-stat .value.large {
+  font-size: 26px;
+}
+
+.portfolio-stat .sub {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* ─── Risk Card ─── */
+.risk-items {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.risk-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.risk-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.risk-value {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--profit));
+  transition: width 1s ease;
+}
+
+.circuit-breaker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0,255,136,0.08);
+  border: 1px solid rgba(0,255,136,0.15);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--profit);
+  margin-top: 4px;
+}
+
+/* ─── Positions Table ─── */
+.positions-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.positions-table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  padding: 0 0 10px 0;
+  border-bottom: 1px solid var(--glass-border);
+  font-weight: 500;
+}
+
+.positions-table th:last-child { text-align: right; }
+
+.positions-table td {
+  padding: 10px 0;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.positions-table td:last-child {
+  text-align: right;
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.positions-table tr:last-child td { border-bottom: none; }
+
+.market-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.side-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.side-badge.yes {
+  background: rgba(0,255,136,0.12);
+  color: var(--profit);
+}
+
+.side-badge.no {
+  background: rgba(0,212,255,0.12);
+  color: var(--accent);
+}
+
+.mono { font-family: var(--mono); }
+
+/* ─── Opportunity Feed ─── */
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feed-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px;
+  font-size: 12px;
+  animation: slide-in 0.4s ease-out;
+  transition: background 0.2s;
+}
+
+.feed-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.feed-item.filtered {
+  opacity: 0.4;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.feed-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  min-width: 40px;
+}
+
+.feed-market {
+  font-weight: 500;
+  flex: 1;
+}
+
+.feed-score, .feed-spread {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.feed-score span, .feed-spread span {
+  color: var(--text-primary);
+}
+
+/* ─── Bottom Bar ─── */
+.bottombar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  background: rgba(16,20,30,0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--glass-border);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.bottom-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bottom-item .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--profit);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.bottom-item .dot.warn { background: #ffa502; }
+
+.bottom-item .label { color: var(--text-secondary); }
+.bottom-item .val { font-family: var(--mono); color: var(--text-primary); font-weight: 500; }
+
+/* ─── Animations ─── */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: count-up 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-in:nth-child(1) { animation-delay: 0.1s; }
+.animate-in:nth-child(2) { animation-delay: 0.2s; }
+.animate-in:nth-child(3) { animation-delay: 0.3s; }
+.animate-in:nth-child(4) { animation-delay: 0.4s; }
+
+.pulse-pnl {
+  animation: pnl-flash 0.6s ease;
+}
+
+@keyframes pnl-flash {
+  0% { color: inherit; }
+  30% { text-shadow: 0 0 10px currentColor; }
+  100% { text-shadow: none; }
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══ TOP BAR ═══ -->
+  <header class="topbar">
+    <div class="logo">
+      <div class="logo-icon">⧫</div>
+      PQAP
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      Trading Active
+    </div>
+    <div class="topbar-stats">
+      <div class="stat-group">
+        <span class="stat-label">Balance</span>
+        <span class="stat-value" data-count="1247.83">$0.00</span>
+      </div>
+      <div class="stat-group">
+        <span class="stat-label">Daily PnL</span>
+        <span class="stat-value profit pulse-pnl">+$47.23 <span style="font-size:11px;opacity:0.7">(+3.93%)</span></span>
+      </div>
+    </div>
+    <button class="btn-emergency">Emergency Stop</button>
+  </header>
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <nav class="sidebar">
+    <div class="nav-item active"><span class="nav-icon">◈</span> Dashboard</div>
+    <div class="nav-item"><span class="nav-icon">⊞</span> Positions</div>
+    <div class="nav-item"><span class="nav-icon">◉</span> Opportunities</div>
+    <div class="nav-item"><span class="nav-icon">◧</span> Analytics</div>
+    <div class="nav-item"><span class="nav-icon">◫</span> Trade History</div>
+    <div class="nav-item"><span class="nav-icon">◨</span> Orderbook</div>
+    <div class="nav-item"><span class="nav-icon">⊡</span> Strategies</div>
+    <div class="nav-item"><span class="nav-icon">◰</span> Backtesting</div>
+    <div class="nav-item"><span class="nav-icon">⚙</span> Settings</div>
+  </nav>
+
+  <!-- ═══ MAIN CONTENT ═══ -->
+  <main class="main">
+
+    <!-- Card 1: Portfolio Overview -->
+    <div class="card animate-in">
+      <div class="card-title">Portfolio Overview</div>
+      <div class="portfolio-grid">
+        <div class="portfolio-stat">
+          <span class="label">Total Capital</span>
+          <span class="value large" data-count="1247.83">$0.00</span>
+        </div>
+        <div class="portfolio-stat">
+          <span class="label">Win Rate</span>
+          <span class="value" data-count="67" data-suffix="%">0%</span>
+        </div>
+        <div class="portfolio-stat">
+          <span class="label">Daily PnL</span>
+          <span class="value profit" data-count="47.23" data-prefix="+">$0.00</span>
+          <span class="sub profit">+3.93%</span>
+        </div>
+        <div class="portfolio-stat">
+          <span class="label">Total PnL</span>
+          <span class="value profit" data-count="247.83" data-prefix="+">$0.00</span>
+          <span class="sub profit">+24.78%</span>
+        </div>
+        <div class="portfolio-stat">
+          <span class="label">Trades Today</span>
+          <span class="value" data-count="12">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Risk Status -->
+    <div class="card animate-in">
+      <div class="card-title">Risk Status</div>
+      <div class="risk-items">
+        <div>
+          <div class="risk-row">
+            <span class="risk-label">Daily Budget</span>
+            <span class="risk-value">$24.96 <span style="font-size:11px;color:var(--text-secondary)">(2%)</span></span>
+          </div>
+        </div>
+        <div>
+          <div class="risk-row">
+            <span class="risk-label">Used Today</span>
+            <span class="risk-value">$12.50 <span style="font-size:11px;color:var(--text-secondary)">(50%)</span></span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: 50%"></div>
+          </div>
+        </div>
+        <div class="risk-row">
+          <span class="risk-label">Drawdown</span>
+          <span class="risk-value">2.3%</span>
+        </div>
+        <div class="risk-row">
+          <span class="risk-label">Win Streak</span>
+          <span class="risk-value" style="color:var(--profit)">3 🔥</span>
+        </div>
+        <div class="circuit-breaker">
+          <span style="font-size:14px">✓</span> Circuit Breaker — OK
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Active Positions -->
+    <div class="card animate-in">
+      <div class="card-title">Active Positions</div>
+      <table class="positions-table">
+        <thead>
+          <tr>
+            <th>Market</th>
+            <th>Side</th>
+            <th>Entry</th>
+            <th>Current</th>
+            <th>PnL</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="market-name">BTC 100k by Dec</td>
+            <td><span class="side-badge yes">YES</span></td>
+            <td class="mono">$0.65</td>
+            <td class="mono">$0.68</td>
+            <td class="mono profit">+$4.62</td>
+          </tr>
+          <tr>
+            <td class="market-name">Fed Rate Cut Jan</td>
+            <td><span class="side-badge no">NO</span></td>
+            <td class="mono">$0.42</td>
+            <td class="mono">$0.40</td>
+            <td class="mono profit">+$2.38</td>
+          </tr>
+          <tr>
+            <td class="market-name">ETH ATH by Mar</td>
+            <td><span class="side-badge yes">YES</span></td>
+            <td class="mono">$0.55</td>
+            <td class="mono">$0.53</td>
+            <td class="mono loss">-$2.50</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Card 4: Live Opportunity Feed -->
+    <div class="card animate-in">
+      <div class="card-title">Live Opportunity Feed</div>
+      <div class="feed">
+        <div class="feed-item" style="animation-delay:0s">
+          <span class="feed-time">2s</span>
+          <span class="feed-market">BTC 100k</span>
+          <span class="feed-score">Score: <span>0.023</span></span>
+          <span class="feed-spread">Spread: <span>2.1%</span></span>
+        </div>
+        <div class="feed-item" style="animation-delay:0.1s">
+          <span class="feed-time">5s</span>
+          <span class="feed-market">Fed Rate</span>
+          <span class="feed-score">Score: <span>0.018</span></span>
+          <span class="feed-spread">Spread: <span>1.8%</span></span>
+        </div>
+        <div class="feed-item" style="animation-delay:0.2s">
+          <span class="feed-time">12s</span>
+          <span class="feed-market">ETH ATH</span>
+          <span class="feed-score">Score: <span>0.015</span></span>
+          <span class="feed-spread">Spread: <span>1.5%</span></span>
+        </div>
+        <div class="feed-item filtered" style="animation-delay:0.3s">
+          <span class="feed-time">30s</span>
+          <span class="feed-market">SOL $200</span>
+          <span class="feed-score">Score: <span>0.012</span></span>
+          <span class="feed-spread">Spread: <span>1.2%</span></span>
+          <span style="font-size:10px;color:var(--text-secondary);background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px">filtered</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ═══ BOTTOM BAR ═══ -->
+  <footer class="bottombar">
+    <div class="bottom-item">
+      <div class="dot"></div>
+      <span class="label">Scanner:</span>
+      <span class="val">Connected</span>
+    </div>
+    <div class="bottom-item">
+      <span class="label">Latency:</span>
+      <span class="val">23ms</span>
+    </div>
+    <div class="bottom-item">
+      <span class="label">Markets:</span>
+      <span class="val">247 active</span>
+    </div>
+    <div class="bottom-item">
+      <span class="label">Opportunities:</span>
+      <span class="val">12/hr</span>
+    </div>
+    <div class="bottom-item">
+      <span class="label">CPU:</span>
+      <span class="val">12%</span>
+    </div>
+    <div class="bottom-item">
+      <span class="label">Memory:</span>
+      <span class="val">234MB</span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+// Count-up animation
+function animateCountUp(el) {
+  const target = parseFloat(el.dataset.count);
+  if (isNaN(target)) return;
+  const prefix = el.dataset.prefix || '';
+  const suffix = el.dataset.suffix || '';
+  const isDecimal = target % 1 !== 0;
+  const duration = 1200;
+  const start = performance.now();
+
+  function tick(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = target * eased;
+
+    if (el.dataset.count.includes('.') || isDecimal) {
+      el.textContent = prefix + '$' + current.toFixed(2) + suffix;
+    } else {
+      el.textContent = prefix + Math.round(current) + suffix;
+    }
+
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+}
+
+// Run count-up on load
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[data-count]').forEach(el => {
+    setTimeout(() => animateCountUp(el), 300);
+  });
+});
+
+// Simulate feed item sliding in periodically
+setInterval(() => {
+  const feed = document.querySelector('.feed');
+  if (!feed) return;
+
+  const markets = ['BTC 100k', 'Fed Rate', 'ETH ATH', 'SOL $200', 'US Election', 'AI Regulation'];
+  const market = markets[Math.floor(Math.random() * markets.length)];
+  const score = (Math.random() * 0.03 + 0.005).toFixed(3);
+  const spread = (Math.random() * 2 + 0.5).toFixed(1);
+
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  item.innerHTML = `
+    <span class="feed-time">now</span>
+    <span class="feed-market">${market}</span>
+    <span class="feed-score">Score: <span>${score}</span></span>
+    <span class="feed-spread">Spread: <span>${spread}%</span></span>
+  `;
+
+  feed.insertBefore(item, feed.firstChild);
+  if (feed.children.length > 6) feed.lastChild.remove();
+}, 8000);
+</script>
+</body>
+</html>

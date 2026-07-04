@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PQAP — Disciplined Predator</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-card: #111820;
+    --bg-card-hover: #161e28;
+    --green: #00ff88;
+    --green-dim: #00cc6a;
+    --green-glow: rgba(0,255,136,0.15);
+    --red: #ff3b5c;
+    --red-dim: #cc2e49;
+    --red-glow: rgba(255,59,92,0.15);
+    --amber: #ffb800;
+    --amber-dim: #cc9300;
+    --amber-glow: rgba(255,184,0,0.15);
+    --cyan: #00d4ff;
+    --cyan-dim: #00a8cc;
+    --text: #c8d0dc;
+    --text-dim: #6b7a8d;
+    --border: #1e2a38;
+    --font-mono: 'Courier New', 'Consolas', monospace;
+    --font-sans: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ─── Scanline overlay ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ─── Grid background ─── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      linear-gradient(rgba(0,255,136,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    background: rgba(10,14,20,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+  }
+  nav .inner {
+    max-width: 1200px; margin: 0 auto; padding: 0 24px;
+    display: flex; align-items: center; gap: 24px;
+    overflow-x: auto;
+  }
+  nav .logo {
+    font-family: var(--font-mono);
+    color: var(--green);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  nav a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color 0.2s;
+  }
+  nav a:hover { color: var(--green); }
+
+  /* ─── HERO ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    padding: 80px 24px;
+  }
+  .hero-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--green);
+    border: 1px solid var(--green-dim);
+    padding: 6px 18px;
+    margin-bottom: 32px;
+    animation: pulse-border 3s ease-in-out infinite;
+  }
+  @keyframes pulse-border {
+    0%,100% { border-color: var(--green-dim); box-shadow: 0 0 0 0 var(--green-glow); }
+    50% { border-color: var(--green); box-shadow: 0 0 20px 4px var(--green-glow); }
+  }
+  .hero h1 {
+    font-family: var(--font-mono);
+    font-size: clamp(48px, 8vw, 120px);
+    font-weight: 900;
+    letter-spacing: 8px;
+    line-height: 1;
+    color: #fff;
+    margin-bottom: 16px;
+    text-shadow: 0 0 80px var(--green-glow), 0 0 160px rgba(0,255,136,0.05);
+  }
+  .hero h1 span { color: var(--green); }
+  .hero .tagline {
+    font-size: 18px;
+    color: var(--text-dim);
+    max-width: 600px;
+    margin-bottom: 40px;
+  }
+  .hero-stats {
+    display: flex;
+    gap: 48px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .hero-stat {
+    text-align: center;
+  }
+  .hero-stat .val {
+    font-family: var(--font-mono);
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--green);
+  }
+  .hero-stat .lbl {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .scroll-hint {
+    position: absolute;
+    bottom: 40px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    animation: bounce 2s ease-in-out infinite;
+  }
+  @keyframes bounce {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(8px); }
+  }
+
+  /* ─── SECTIONS ─── */
+  section {
+    padding: 100px 0;
+    position: relative;
+  }
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-family: var(--font-mono);
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 12px;
+  }
+  .section-desc {
+    color: var(--text-dim);
+    max-width: 600px;
+    margin-bottom: 48px;
+    font-size: 15px;
+  }
+
+  /* ─── DIVIDER ─── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* ─── HUNT CARDS ─── */
+  .hunt-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .hunt-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  .hunt-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--green-dim);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,255,136,0.08);
+  }
+  .hunt-card .emoji {
+    font-size: 32px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .hunt-card h3 {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    color: #fff;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+  .hunt-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .hunt-card .tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    margin-top: 12px;
+    border: 1px solid;
+  }
+  .tag-detect { color: var(--green); border-color: var(--green-dim); }
+  .tag-execute { color: var(--cyan); border-color: var(--cyan-dim); }
+  .tag-risk { color: var(--red); border-color: var(--red-dim); }
+  .tag-adapt { color: var(--amber); border-color: var(--amber-dim); }
+
+  /* ─── THREAT MATRIX ─── */
+  .threat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+  }
+  .threat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  .threat-card:hover {
+    border-color: var(--red-dim);
+    box-shadow: 0 0 24px var(--red-glow);
+  }
+  .threat-card .severity-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+  .sev-critical { background: var(--red); box-shadow: 0 0 12px var(--red-glow); }
+  .sev-high { background: var(--amber); box-shadow: 0 0 12px var(--amber-glow); }
+  .threat-card .threat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .threat-card h3 {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    color: #fff;
+    letter-spacing: 1px;
+  }
+  .threat-card .sev-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 2px 10px;
+    text-transform: uppercase;
+  }
+  .sev-badge.critical {
+    color: var(--red);
+    border: 1px solid var(--red-dim);
+    background: var(--red-glow);
+  }
+  .sev-badge.high {
+    color: var(--amber);
+    border: 1px solid var(--amber-dim);
+    background: var(--amber-glow);
+  }
+  .threat-card .threat-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+  .threat-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .threat-card .threat-stat {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .threat-stat-item {
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .threat-stat-item .label { color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  .threat-stat-item .value { color: var(--red); font-weight: 700; margin-top: 2px; }
+  .threat-stat-item .value.amber { color: var(--amber); }
+
+  /* ─── PLAYBOOKS ─── */
+  .playbook-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+  }
+  .playbook-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  .playbook-card:hover {
+    background: var(--bg-card-hover);
+    transform: translateY(-2px);
+  }
+  .playbook-card .source-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+  }
+  .playbook-card h3 {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .playbook-card .source-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 16px;
+  }
+  .playbook-card .patterns {
+    list-style: none;
+  }
+  .playbook-card .patterns li {
+    font-size: 13px;
+    color: var(--text-dim);
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .playbook-card .patterns li:last-child { border-bottom: none; }
+  .playbook-card .patterns .pattern-name {
+    font-family: var(--font-mono);
+    color: var(--text);
+    font-size: 12px;
+    min-width: 120px;
+    flex-shrink: 0;
+  }
+
+  /* ─── CONNECTIONS ─── */
+  .connections-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+  }
+  .conn-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 28px;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+  .conn-card:hover {
+    border-color: var(--cyan-dim);
+    box-shadow: 0 0 24px rgba(0,212,255,0.08);
+  }
+  .conn-card .conn-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--cyan);
+    margin-bottom: 12px;
+  }
+  .conn-card h3 {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: #fff;
+    margin-bottom: 12px;
+  }
+  .conn-card .formula {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--green);
+    background: rgba(0,255,136,0.05);
+    border: 1px solid rgba(0,255,136,0.1);
+    padding: 8px 14px;
+    margin-bottom: 14px;
+    display: inline-block;
+  }
+  .conn-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  /* ─── PRIORITY MAP ─── */
+  .priority-lanes {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .priority-lane {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 24px;
+    align-items: start;
+    transition: all 0.3s ease;
+  }
+  .priority-lane:hover {
+    background: var(--bg-card-hover);
+  }
+  .lane-label {
+    text-align: center;
+    padding: 16px;
+    border: 1px solid;
+    position: relative;
+  }
+  .lane-label .tier {
+    font-family: var(--font-mono);
+    font-size: 24px;
+    font-weight: 900;
+    display: block;
+  }
+  .lane-label .tier-name {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 4px;
+    display: block;
+  }
+  .lane-p0 { border-color: var(--red-dim); }
+  .lane-p0 .tier { color: var(--red); }
+  .lane-p0 .tier-name { color: var(--red-dim); }
+  .lane-p1 { border-color: var(--amber-dim); }
+  .lane-p1 .tier { color: var(--amber); }
+  .lane-p1 .tier-name { color: var(--amber-dim); }
+  .lane-p2 { border-color: var(--cyan-dim); }
+  .lane-p2 .tier { color: var(--cyan); }
+  .lane-p2 .tier-name { color: var(--cyan-dim); }
+  .lane-p3 { border-color: var(--green-dim); }
+  .lane-p3 .tier { color: var(--green); }
+  .lane-p3 .tier-name { color: var(--green-dim); }
+  .lane-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .lane-item {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    color: var(--text);
+    transition: all 0.2s;
+  }
+  .lane-item:hover {
+    border-color: var(--text-dim);
+    background: rgba(255,255,255,0.06);
+  }
+
+  /* ─── THE EDGE ─── */
+  .edge-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 768px) {
+    .edge-grid { grid-template-columns: 1fr; }
+    .priority-lane { grid-template-columns: 1fr; }
+  }
+  .edge-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 36px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  .edge-card:hover {
+    transform: translateY(-2px);
+  }
+  .edge-card.smart-speed { border-left: 3px solid var(--green); }
+  .edge-card.batasi-win { border-left: 3px solid var(--amber); }
+  .edge-card .edge-icon {
+    font-size: 40px;
+    margin-bottom: 16px;
+  }
+  .edge-card h3 {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    color: #fff;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+  .edge-card .edge-subtitle {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .edge-card.smart-speed .edge-subtitle { color: var(--green); }
+  .edge-card.batasi-win .edge-subtitle { color: var(--amber); }
+  .edge-card p {
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .edge-card .insight-box {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    padding: 16px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .edge-card.smart-speed .insight-box { color: var(--green); }
+  .edge-card.batasi-win .insight-box { color: var(--amber); }
+
+  /* ─── FOOTER ─── */
+  footer {
+    padding: 60px 0;
+    text-align: center;
+    border-top: 1px solid var(--border);
+  }
+  footer .logo-end {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--green);
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+  }
+  footer .date {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-in {
+    opacity: 0;
+    animation: fade-in-up 0.6s ease forwards;
+  }
+  .delay-1 { animation-delay: 0.1s; }
+  .delay-2 { animation-delay: 0.2s; }
+  .delay-3 { animation-delay: 0.3s; }
+  .delay-4 { animation-delay: 0.4s; }
+  .delay-5 { animation-delay: 0.5s; }
+
+  /* ─── Ticker tape ─── */
+  .ticker-wrap {
+    overflow: hidden;
+    background: rgba(0,255,136,0.03);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 0;
+  }
+  .ticker {
+    display: flex;
+    gap: 48px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    animation: scroll-left 40s linear infinite;
+  }
+  .ticker span { flex-shrink: 0; }
+  .ticker .up { color: var(--green); }
+  .ticker .warn { color: var(--amber); }
+  .ticker .danger { color: var(--red); }
+  @keyframes scroll-left {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  /* ─── Mini bar chart (pure CSS) ─── */
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 60px;
+    margin-top: 16px;
+  }
+  .bar {
+    flex: 1;
+    background: var(--green);
+    border-radius: 2px 2px 0 0;
+    min-width: 12px;
+    position: relative;
+    animation: bar-grow 1s ease forwards;
+    transform-origin: bottom;
+  }
+  .bar.amber { background: var(--amber); }
+  .bar.red { background: var(--red); }
+  .bar.cyan { background: var(--cyan); }
+  @keyframes bar-grow {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <div class="inner">
+    <div class="logo">PQAP</div>
+    <a href="#hunt">Hunt</a>
+    <a href="#threats">Threats</a>
+    <a href="#playbooks">Playbooks</a>
+    <a href="#connections">Connections</a>
+    <a href="#priority">Priority</a>
+    <a href="#edge">Edge</a>
+  </div>
+</nav>
+
+<!-- ─── HERO ─── -->
+<section class="hero">
+  <div class="hero-badge animate-in">Brainstorm Artifact — 2026-07-02</div>
+  <h1 class="animate-in delay-1">DISCIPLINED<br><span>PREDATOR</span></h1>
+  <p class="tagline animate-in delay-2">Fast but not reckless. Aggressive but not greedy. Adaptive but not inconsistent. Every decision data-driven, every trade scored, every risk budgeted.</p>
+  <div class="hero-stats animate-in delay-3">
+    <div class="hero-stat">
+      <div class="val">11</div>
+      <div class="lbl">Principles</div>
+    </div>
+    <div class="hero-stat">
+      <div class="val" style="color:var(--red)">5</div>
+      <div class="lbl">Threats</div>
+    </div>
+    <div class="hero-stat">
+      <div class="val" style="color:var(--cyan)">3</div>
+      <div class="lbl">Playbooks</div>
+    </div>
+    <div class="hero-stat">
+      <div class="val" style="color:var(--amber)">6</div>
+      <div class="lbl">Clusters</div>
+    </div>
+  </div>
+  <div class="scroll-hint animate-in delay-5">▼ SCROLL TO ENGAGE</div>
+</section>
+
+<!-- ─── TICKER ─── -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <span>SELECTIVE HUNTING</span>
+    <span class="up">▲ KILL ZONE</span>
+    <span>STALK BEFORE STRIKE</span>
+    <span class="warn">△ METABOLIC RATE</span>
+    <span>PACK COMMUNICATION</span>
+    <span class="danger">▼ CASCADE RISK</span>
+    <span>ADAPT OR DIE</span>
+    <span class="up">▲ REDUNDANT SENSING</span>
+    <span>MUSCLE MEMORY</span>
+    <span>TERRITORIAL AWARENESS</span>
+    <span class="warn">△ SCAVENGER MODE</span>
+    <span>HIBERNATION</span>
+    <span>SELECTIVE HUNTING</span>
+    <span class="up">▲ KILL ZONE</span>
+    <span>STALK BEFORE STRIKE</span>
+    <span class="warn">△ METABOLIC RATE</span>
+    <span>PACK COMMUNICATION</span>
+    <span class="danger">▼ CASCADE RISK</span>
+    <span>ADAPT OR DIE</span>
+    <span class="up">▲ REDUNDANT SENSING</span>
+    <span>MUSCLE MEMORY</span>
+    <span>TERRITORIAL AWARENESS</span>
+    <span class="warn">△ SCAVENGER MODE</span>
+    <span>HIBERNATION</span>
+  </div>
+</div>
+
+<!-- ─── THE HUNT ─── -->
+<section id="hunt">
+  <div class="container">
+    <div class="section-label">// 01 — THE HUNT</div>
+    <div class="section-title">Predator Principles</div>
+    <div class="section-desc">The 11 principles that govern every decision. Each one is a lens through which the platform evaluates action.</div>
+    <div class="hunt-grid">
+
+      <div class="hunt-card">
+        <span class="emoji">🎯</span>
+        <h3>SELECTIVE HUNTING</h3>
+        <p>Don't chase every opportunity. Wait for the setup that matches your edge. Pass on 99 to catch the 1 that matters.</p>
+        <span class="tag tag-detect">DETECTION</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">🐆</span>
+        <h3>STALK BEFORE STRIKE</h3>
+        <p>Observe order book depth, track price movement, confirm the edge exists before committing capital. Patience is alpha.</p>
+        <span class="tag tag-detect">DETECTION</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">💀</span>
+        <h3>KILL ZONE</h3>
+        <p>Define exact conditions for entry. Price range, volume threshold, spread width, time window. No kill zone, no trade.</p>
+        <span class="tag tag-execute">EXECUTION</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">⚡</span>
+        <h3>METABOLIC RATE</h3>
+        <p>How fast the system burns resources per trade. Like a cheetah — explosive speed in short bursts, recovery between hunts.</p>
+        <span class="tag tag-risk">RISK</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">🐺</span>
+        <h3>PACK COMMUNICATION</h3>
+        <p>Components share state in real-time. Risk engine, execution engine, detection engine — all see the same picture via Redis pub/sub.</p>
+        <span class="tag tag-execute">EXECUTION</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">🧬</span>
+        <h3>ADAPT OR DIE</h3>
+        <p>Markets evolve. Strategies that worked yesterday may fail tomorrow. Continuous learning loop — backtest, score, adjust, repeat.</p>
+        <span class="tag tag-adapt">ADAPTATION</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">👁️</span>
+        <h3>REDUNDANT SENSING</h3>
+        <p>Multiple data sources, cross-validated. If one feed lies, the others catch it. No single point of data failure.</p>
+        <span class="tag tag-detect">DETECTION</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">💪</span>
+        <h3>MUSCLE MEMORY</h3>
+        <p>Hot paths optimized to the nanosecond. Critical code paths pre-compiled, cached, benchmarked. The system reflexes, not deliberates.</p>
+        <span class="tag tag-execute">EXECUTION</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">🗺️</span>
+        <h3>TERRITORIAL AWARENESS</h3>
+        <p>Know your market. Liquidity patterns, active hours, whale behavior, event calendars. Own your territory before hunting in it.</p>
+        <span class="tag tag-detect">DETECTION</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">🦅</span>
+        <h3>SCAVENGER MODE</h3>
+        <p>When primary hunts fail, switch to scavenging. Small edges, high frequency, low risk. Survive the famine to hunt again.</p>
+        <span class="tag tag-adapt">ADAPTATION</span>
+      </div>
+
+      <div class="hunt-card">
+        <span class="emoji">🐻</span>
+        <h3>HIBERNATION</h3>
+        <p>Know when to stop. High volatility, low liquidity, system anomalies — shut down, conserve resources, wait for conditions to improve.</p>
+        <span class="tag tag-risk">RISK</span>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── THREAT MATRIX ─── -->
+<section id="threats">
+  <div class="container">
+    <div class="section-label">// 02 — THREAT MATRIX</div>
+    <div class="section-title">Catastrophic Failures</div>
+    <div class="section-desc">The five ways the platform dies. Each one is a kill shot — not a scratch, a kill. Design for these or lose everything.</div>
+    <div class="threat-grid">
+
+      <div class="threat-card">
+        <div class="severity-bar sev-critical"></div>
+        <div class="threat-header">
+          <h3>LATENCY DEATH</h3>
+          <span class="sev-badge critical">CRITICAL</span>
+        </div>
+        <div class="threat-icon">⏱️</div>
+        <p>The edge evaporates between detection and execution. By the time you strike, the opportunity is gone — or worse, reversed.</p>
+        <div class="threat-stat">
+          <div class="threat-stat-item">
+            <div class="label">Impact</div>
+            <div class="value">TOTAL LOSS</div>
+          </div>
+          <div class="threat-stat-item">
+            <div class="label">Detection</div>
+            <div class="value amber">DIFFICULT</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="threat-card">
+        <div class="severity-bar sev-critical"></div>
+        <div class="threat-header">
+          <h3>LIQUIDITY MIRAGE</h3>
+          <span class="sev-badge critical">CRITICAL</span>
+        </div>
+        <div class="threat-icon">🏜️</div>
+        <p>The order book shows depth that vanishes on execution. You think you can exit, but the exit is a wall of nothing.</p>
+        <div class="threat-stat">
+          <div class="threat-stat-item">
+            <div class="label">Impact</div>
+            <div class="value">STRANDED</div>
+          </div>
+          <div class="threat-stat-item">
+            <div class="label">Detection</div>
+            <div class="value amber">MODERATE</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="threat-card">
+        <div class="severity-bar sev-critical"></div>
+        <div class="threat-header">
+          <h3>CASCADE RISK</h3>
+          <span class="sev-badge critical">CRITICAL</span>
+        </div>
+        <div class="threat-icon">🌊</div>
+        <p>One failure triggers another. Position gets stuck → margin call → forced liquidation → worse price → more liquidation. Wipeout in minutes.</p>
+        <div class="threat-stat">
+          <div class="threat-stat-item">
+            <div class="label">Impact</div>
+            <div class="value">WIPEOUT</div>
+          </div>
+          <div class="threat-stat-item">
+            <div class="label">Speed</div>
+            <div class="value">MINUTES</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="threat-card">
+        <div class="severity-bar sev-high"></div>
+        <div class="threat-header">
+          <h3>API DEATH SPIRAL</h3>
+          <span class="sev-badge high">HIGH</span>
+        </div>
+        <div class="threat-icon">🔌</div>
+        <p>Rate limits, degraded endpoints, partial responses. The system thinks it's trading but it's shouting into the void.</p>
+        <div class="threat-stat">
+          <div class="threat-stat-item">
+            <div class="label">Impact</div>
+            <div class="value amber">BLIND</div>
+          </div>
+          <div class="threat-stat-item">
+            <div class="label">Detection</div>
+            <div class="value amber">HARD</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="threat-card">
+        <div class="severity-bar sev-high"></div>
+        <div class="threat-header">
+          <h3>SILENT DATA CORRUPTION</h3>
+          <span class="sev-badge high">HIGH</span>
+        </div>
+        <div class="threat-icon">🔇</div>
+        <p>Bad data feeds poison every decision downstream. No alerts, no errors — just quietly wrong. The invisible killer.</p>
+        <div class="threat-stat">
+          <div class="threat-stat-item">
+            <div class="label">Impact</div>
+            <div class="value">INSIDIOUS</div>
+          </div>
+          <div class="threat-stat-item">
+            <div class="label">Detection</div>
+            <div class="value">VERY HARD</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── STOLEN PLAYBOOKS ─── -->
+<section id="playbooks">
+  <div class="container">
+    <div class="section-label">// 03 — STOLEN PLAYBOOKS</div>
+    <div class="section-title">Cross-Pollination</div>
+    <div class="section-desc">Battle-tested patterns from domains that solved similar problems decades (or centuries) ago.</div>
+    <div class="playbook-grid">
+
+      <div class="playbook-card">
+        <div class="source-icon">🎰</div>
+        <h3>CASINO</h3>
+        <div class="source-label">RICHEST SOURCE — RISK + PROFIT OPTIMIZATION</div>
+        <ul class="patterns">
+          <li><span class="pattern-name">House Edge</span> Every trade must have a statistical edge. No edge, no trade.</li>
+          <li><span class="pattern-name">Table Limits</span> Hard caps on position size per market and total exposure.</li>
+          <li><span class="pattern-name">Pit Boss</span> Centralized risk monitor that can shut down any table at will.</li>
+          <li><span class="pattern-name">Surveillance</span> Continuous anomaly detection on all system outputs.</li>
+        </ul>
+        <div class="bar-chart">
+          <div class="bar" style="height:90%"></div>
+          <div class="bar" style="height:75%"></div>
+          <div class="bar" style="height:85%"></div>
+          <div class="bar" style="height:60%"></div>
+          <div class="bar" style="height:95%"></div>
+          <div class="bar" style="height:70%"></div>
+          <div class="bar" style="height:80%"></div>
+        </div>
+      </div>
+
+      <div class="playbook-card">
+        <div class="source-icon">🏥</div>
+        <h3>EMERGENCY ROOM</h3>
+        <div class="source-label">TRIAGE + RAPID RESPONSE UNDER CHAOS</div>
+        <ul class="patterns">
+          <li><span class="pattern-name">Triage</span> Classify opportunities by urgency and potential. Not all are worth saving.</li>
+          <li><span class="pattern-name">Code Blue</span> Emergency protocol — instant position liquidation when vitals crash.</li>
+          <li><span class="pattern-name">Handover</span> Clean state transfer between system restarts. No information lost.</li>
+        </ul>
+        <div class="bar-chart">
+          <div class="bar amber" style="height:70%"></div>
+          <div class="bar amber" style="height:85%"></div>
+          <div class="bar amber" style="height:50%"></div>
+          <div class="bar amber" style="height:90%"></div>
+          <div class="bar amber" style="height:60%"></div>
+          <div class="bar amber" style="height:75%"></div>
+          <div class="bar amber" style="height:65%"></div>
+        </div>
+      </div>
+
+      <div class="playbook-card">
+        <div class="source-icon">✈️</div>
+        <h3>AIR TRAFFIC CONTROL</h3>
+        <div class="source-label">SEPARATION + CONFLICT DETECTION + GO-AROUND</div>
+        <ul class="patterns">
+          <li><span class="pattern-name">Separation</span> Keep trades isolated. One failure doesn't cascade into others.</li>
+          <li><span class="pattern-name">Sector Control</span> Each market sector has its own monitoring and limits.</li>
+          <li><span class="pattern-name">Conflict Detection</span> Real-time check for conflicting positions before execution.</li>
+          <li><span class="pattern-name">Go-Around</span> Abort the trade if conditions change mid-execution. No ego.</li>
+        </ul>
+        <div class="bar-chart">
+          <div class="bar cyan" style="height:80%"></div>
+          <div class="bar cyan" style="height:65%"></div>
+          <div class="bar cyan" style="height:90%"></div>
+          <div class="bar cyan" style="height:55%"></div>
+          <div class="bar cyan" style="height:75%"></div>
+          <div class="bar cyan" style="height:85%"></div>
+          <div class="bar cyan" style="height:70%"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── KEY CONNECTIONS ─── -->
+<section id="connections">
+  <div class="container">
+    <div class="section-label">// 04 — KEY CONNECTIONS</div>
+    <div class="section-title">Non-Obvious Synergies</div>
+    <div class="section-desc">When principles collide, they create emergent systems — more than the sum of their parts.</div>
+    <div class="connections-grid">
+
+      <div class="conn-card">
+        <div class="conn-badge">CONNECTION 01</div>
+        <h3>State Reconciliation Engine</h3>
+        <div class="formula">Redundant Sensing + Silent Data Corruption</div>
+        <p>Multiple data sources aren't just for redundancy — they're for reconciliation. Cross-validate every feed against every other. If one lies, the truth emerges from the consensus. The engine that makes corruption visible.</p>
+      </div>
+
+      <div class="conn-card">
+        <div class="conn-badge">CONNECTION 02</div>
+        <h3>Metabolic Governor</h3>
+        <div class="formula">Metabolic Rate → Prevents Cascade Risk</div>
+        <p>By controlling how fast the system burns through trades and resources, you prevent the runaway chain reaction. Speed limit isn't weakness — it's survival. The cheetah that sprints forever dies.</p>
+      </div>
+
+      <div class="conn-card">
+        <div class="conn-badge">CONNECTION 03</div>
+        <h3>Centralized Risk Monitor</h3>
+        <div class="formula">Pit Boss + Pack Communication → Redis</div>
+        <p>Casino pit boss authority meets wolf pack real-time coordination. All components publish state to Redis. The monitor sees everything, can shut down anything. One brain, many eyes.</p>
+      </div>
+
+      <div class="conn-card">
+        <div class="conn-badge">CONNECTION 04</div>
+        <h3>Market Mastery Matrix</h3>
+        <div class="formula">Focus Market + Kill Zone</div>
+        <p>Know your territory AND know your trigger conditions. Deep expertise in specific markets combined with precise entry criteria. Not a generalist — a specialist predator with a narrow, lethal focus.</p>
+      </div>
+
+      <div class="conn-card">
+        <div class="conn-badge">CONNECTION 05</div>
+        <h3>Opportunity Scoring Engine</h3>
+        <div class="formula">Selective Hunting + Triage</div>
+        <p>ER triage applied to predator selectivity. Score every opportunity on urgency, probability, and payoff. Only the highest-scoring setups get through. The rest are noise, filtered before they waste a single cycle.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── PRIORITY MAP ─── -->
+<section id="priority">
+  <div class="container">
+    <div class="section-label">// 05 — PRIORITY MAP</div>
+    <div class="section-title">Cluster Prioritization</div>
+    <div class="section-desc">Six clusters, four priority tiers. Build order matters — get the spine right first.</div>
+    <div class="priority-lanes">
+
+      <div class="priority-lane">
+        <div class="lane-label lane-p0">
+          <span class="tier">P0</span>
+          <span class="tier-name">Foundation</span>
+        </div>
+        <div class="lane-items">
+          <div class="lane-item">Architecture Spine</div>
+          <div class="lane-item">Core Data Pipeline</div>
+          <div class="lane-item">State Management</div>
+          <div class="lane-item">Redis Backbone</div>
+        </div>
+      </div>
+
+      <div class="priority-lane">
+        <div class="lane-label lane-p1">
+          <span class="tier">P1</span>
+          <span class="tier-name">Core Loop</span>
+        </div>
+        <div class="lane-items">
+          <div class="lane-item">Risk Engine</div>
+          <div class="lane-item">Execution Engine</div>
+          <div class="lane-item">Detection Engine</div>
+          <div class="lane-item">Order Book Analysis</div>
+          <div class="lane-item">Position Management</div>
+        </div>
+      </div>
+
+      <div class="priority-lane">
+        <div class="lane-label lane-p2">
+          <span class="tier">P2</span>
+          <span class="tier-name">Resilience</span>
+        </div>
+        <div class="lane-items">
+          <div class="lane-item">Failover Systems</div>
+          <div class="lane-item">State Reconciliation</div>
+          <div class="lane-item">Circuit Breakers</div>
+          <div class="lane-item">Monitoring & Alerts</div>
+        </div>
+      </div>
+
+      <div class="priority-lane">
+        <div class="lane-label lane-p3">
+          <span class="tier">P3</span>
+          <span class="tier-name">Evolution</span>
+        </div>
+        <div class="lane-items">
+          <div class="lane-item">Backtesting Framework</div>
+          <div class="lane-item">Performance Analytics</div>
+          <div class="lane-item">Strategy Scoring</div>
+          <div class="lane-item">Adaptive Parameters</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ─── THE EDGE ─── -->
+<section id="edge">
+  <div class="container">
+    <div class="section-label">// 06 — THE EDGE</div>
+    <div class="section-title">Counterintuitive Insights</div>
+    <div class="section-desc">The two insights that most people get wrong. The competitive moat.</div>
+    <div class="edge-grid">
+
+      <div class="edge-card smart-speed">
+        <div class="edge-icon">⚡</div>
+        <h3>SMART SPEED</h3>
+        <div class="edge-subtitle">Not Slow. Not Fast. Right.</div>
+        <p>The instinct is to go fast — millisecond everything. But blind speed wastes resources on noise. Smart Speed means:</p>
+        <div class="insight-box">
+          Fast Detection — see the opportunity instantly<br>
+          Fast Filtering — kill bad setups in microseconds<br>
+          Fast Execution — strike when the edge is confirmed<br>
+          Fast Rejection — abandon instantly if conditions shift<br><br>
+          → Speed is a tool, not a goal. Use it where it matters.
+        </div>
+      </div>
+
+      <div class="edge-card batasi-win">
+        <div class="edge-icon">🛑</div>
+        <h3>BATASI WIN</h3>
+        <div class="edge-subtitle">The Safety Net That Saves You</div>
+        <p>"Batasi Win" — limit your wins. Sounds insane for a profit-seeking system. But unbounded greed kills faster than any bug:</p>
+        <div class="insight-box">
+          Hard profit targets per trade — take the edge, don't chase<br>
+          Daily P&L caps — stop when you've hit your number<br>
+          Position size limits — never bet the farm on one market<br>
+          Drawdown circuit breakers — shut down before cascade<br><br>
+          → The predator that knows when to stop eating survives winter.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer>
+  <div class="container">
+    <div class="logo-end">PQAP</div>
+    <div class="date">BRAINSTORM SESSION — 2026-07-02</div>
+    <div style="margin-top:16px; font-family:var(--font-mono); font-size:11px; color:var(--text-dim); letter-spacing:1px;">
+      POLYMARKET QUANT ARBITRAGE PLATFORM<br>
+      <span style="color:var(--green)">STATUS: DESIGN PHASE</span> &nbsp;|&nbsp;
+      <span style="color:var(--amber)">MODE: PRODUCTION-GRADE</span> &nbsp;|&nbsp;
+      <span style="color:var(--red)">REVENUE: TRADING ONLY</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Intersection Observer for scroll animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.hunt-card, .threat-card, .playbook-card, .conn-card, .priority-lane, .edge-card').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(20px)';
+    el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+    observer.observe(el);
+  });
+
+  // Stagger the cards
+  document.querySelectorAll('.hunt-card').forEach((el, i) => {
+    el.style.transitionDelay = `${i * 0.05}s`;
+  });
+  document.querySelectorAll('.threat-card').forEach((el, i) => {
+    el.style.transitionDelay = `${i * 0.08}s`;
+  });
+  document.querySelectorAll('.playbook-card').forEach((el, i) => {
+    el.style.transitionDelay = `${i * 0.1}s`;
+  });
+  document.querySelectorAll('.conn-card').forEach((el, i) => {
+    el.style.transitionDelay = `${i * 0.1}s`;
+  });
+  document.querySelectorAll('.priority-lane').forEach((el, i) => {
+    el.style.transitionDelay = `${i * 0.1}s`;
+  });
+</script>
+
+</body>
+</html>
