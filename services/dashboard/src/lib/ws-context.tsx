@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createWSClient, type WSStatus } from "@/lib/websocket";
 import type { WSMessage, PortfolioOverview, Position, RiskStatus, SystemHealth, Opportunity } from "@/types";
 
@@ -47,6 +47,11 @@ export function WSProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     clientRef.current = createWSClient({
       onMessage: (message: WSMessage) => {
+        // #13: Basic payload validation
+        if (!message || !message.type || !message.payload) {
+          console.warn("[WS] Invalid message format:", message);
+          return;
+        }
         if (message.type === "portfolio_update") {
           setPortfolioData(message.payload as PortfolioOverview);
         } else if (message.type === "position_update") {
@@ -70,8 +75,12 @@ export function WSProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const value = useMemo(() => ({
+    portfolioData, positionData, riskData, healthData, wsStatus, onOpportunity
+  }), [portfolioData, positionData, riskData, healthData, wsStatus, onOpportunity]);
+
   return (
-    <WSContext.Provider value={{ portfolioData, positionData, riskData, healthData, wsStatus, onOpportunity }}>
+    <WSContext.Provider value={value}>
       {children}
     </WSContext.Provider>
   );

@@ -19,14 +19,17 @@ export function usePortfolio(): UsePortfolioResult {
   const [error, setError] = useState<string | null>(null);
   const wsDataReceived = useRef(false);
 
+  // WS effect — always apply (not just first message)
   useEffect(() => {
-    if (portfolioData && !wsDataReceived.current) {
+    if (portfolioData) {
       wsDataReceived.current = true;
       setData(portfolioData);
       setLoading(false);
+      setError(null);
     }
   }, [portfolioData]);
 
+  // REST fallback — only if WS hasn't sent data yet
   useEffect(() => {
     let cancelled = false;
 
@@ -38,7 +41,7 @@ export function usePortfolio(): UsePortfolioResult {
         }
       })
       .catch((err) => {
-        if (!cancelled) {
+        if (!cancelled && !wsDataReceived.current) {
           setError(err instanceof Error ? err.message : "Failed to load portfolio");
           setLoading(false);
         }

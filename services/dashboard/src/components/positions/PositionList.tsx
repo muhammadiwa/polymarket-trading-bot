@@ -80,7 +80,7 @@ const COLUMNS: Column<Position>[] = [
     sortable: true,
     render: (row) => <span className="text-gray-300">{formatPrice(row.entryPrice)}</span>,
     sortValue: (row) => {
-      try { return new Decimal(row.entryPrice).toNumber(); } catch { return 0; }
+      try { return row.entryPrice; } catch { return "0"; }
     },
   },
   {
@@ -89,7 +89,7 @@ const COLUMNS: Column<Position>[] = [
     sortable: true,
     render: (row) => <span className="text-white">{formatPrice(row.currentPrice)}</span>,
     sortValue: (row) => {
-      try { return new Decimal(row.currentPrice).toNumber(); } catch { return 0; }
+      try { return row.currentPrice; } catch { return "0"; }
     },
   },
   {
@@ -98,7 +98,7 @@ const COLUMNS: Column<Position>[] = [
     sortable: true,
     render: (row) => <span className="text-gray-300">{formatQuantity(row.quantity)}</span>,
     sortValue: (row) => {
-      try { return new Decimal(row.quantity).toNumber(); } catch { return 0; }
+      try { return row.quantity; } catch { return "0"; }
     },
   },
   {
@@ -109,7 +109,7 @@ const COLUMNS: Column<Position>[] = [
       <span className={pnlColor(row.unrealizedPnL)}>{formatPnL(row.unrealizedPnL)}</span>
     ),
     sortValue: (row) => {
-      try { return new Decimal(row.unrealizedPnL).toNumber(); } catch { return 0; }
+      try { return row.unrealizedPnL; } catch { return "0"; }
     },
   },
 ];
@@ -135,11 +135,21 @@ export function PositionList() {
       const va = col.sortValue!(a);
       const vb = col.sortValue!(b);
       if (typeof va === "number" && typeof vb === "number") {
+        if (isNaN(va)) return 1;
+        if (isNaN(vb)) return -1;
         return sortDir === "asc" ? va - vb : vb - va;
       }
-      return sortDir === "asc"
-        ? String(va).localeCompare(String(vb))
-        : String(vb).localeCompare(String(va));
+      // #19: Decimal string comparison
+      try {
+        const da = new Decimal(va as string);
+        const db = new Decimal(vb as string);
+        const cmp = da.comparedTo(db);
+        return sortDir === "asc" ? cmp : -cmp;
+      } catch {
+        return sortDir === "asc"
+          ? String(va).localeCompare(String(vb))
+          : String(vb).localeCompare(String(va));
+      }
     });
   }, [data, sortKey, sortDir]);
 
@@ -159,7 +169,7 @@ export function PositionList() {
   if (error) {
     return (
       <div className="rounded-xl border border-[#ff4757]/30 bg-[#ff4757]/10 backdrop-blur-md p-5 text-[#ff4757]" role="alert">
-        Failed to load positions: {error}
+        Failed to load positions. Please try again.
       </div>
     );
   }
