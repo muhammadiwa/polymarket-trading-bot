@@ -67,8 +67,8 @@ async def rebalance(
         raise HTTPException(status_code=400, detail="Weights cannot be empty")
 
     total = sum(body.weights.values())
-    if abs(total - 100.0) > 0.05:
-        raise HTTPException(status_code=400, detail=f"Weights must sum to 100% (±0.05%). Current: {total:.4f}%")
+    if abs(total - 100.0) > 0.01:
+        raise HTTPException(status_code=400, detail=f"Weights must sum to 100% (±0.01%). Current: {total:.4f}%")
 
     pool = await get_pool()
     async with pool.acquire() as conn:

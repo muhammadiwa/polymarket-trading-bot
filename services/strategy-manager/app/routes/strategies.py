@@ -230,12 +230,12 @@ async def update_weights(body: WeightUpdateRequest, user: dict = Depends(verify_
         if w < 0 or w > 100:
             raise HTTPException(status_code=400, detail=f"Weight for {sid} must be 0-100")
 
-    # #8: Validate sum == 100% ±0.05% (float tolerance)
+    # #8: Validate sum == 100% ±0.01% (per spec)
     total = sum(body.weights.values())
-    if abs(total - 100.0) > 0.05:
+    if abs(total - 100.0) > 0.01:
         raise HTTPException(
             status_code=400,
-            detail=f"Weights must sum to 100% (±0.05%). Current sum: {total:.4f}%",
+            detail=f"Weights must sum to 100% (±0.01%). Current sum: {total:.4f}%",
         )
 
     pool = await get_pool()
@@ -247,6 +247,9 @@ async def update_weights(body: WeightUpdateRequest, user: dict = Depends(verify_
                 strategy = await strategy_repo.get_strategy(conn, strategy_id)
                 if strategy is None:
                     raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+                # #26: Only allow weight assignment for active strategies
+                if strategy.status != "active":
+                    raise HTTPException(status_code=400, detail=f"Strategy {strategy_id} is not active (status: {strategy.status})")
 
                 update_data = StrategyUpdate(capital_weight=weight)
                 await strategy_repo.update_strategy(conn, strategy_id, update_data, user.get("user_id"))

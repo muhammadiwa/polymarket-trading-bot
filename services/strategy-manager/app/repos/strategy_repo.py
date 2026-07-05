@@ -125,7 +125,9 @@ async def update_strategy(
     new_params = {**old_params, **data.model_dump(exclude_unset=True)}
     change_summary = version_repo.generate_change_summary(old_params, new_params)
 
-    await version_repo.create_version(conn, strategy_id, old_params, change_summary, changed_by)
+    # #18: Only create version if parameters actually changed
+    if change_summary != "No parameter changes":
+        await version_repo.create_version(conn, strategy_id, old_params, change_summary, changed_by)
 
     fields.append(f"updated_at = ${idx}")
     params.append(datetime.now(timezone.utc))

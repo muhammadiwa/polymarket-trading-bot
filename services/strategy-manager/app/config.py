@@ -10,3 +10,7 @@ class Config:
 
 
 config = Config()
+
+# Fail fast if JWT_SECRET is empty — prevents token forgery
+if not config.JWT_SECRET:
+    raise RuntimeError("RISK_JWT_SECRET must be set — empty value allows token forgery")

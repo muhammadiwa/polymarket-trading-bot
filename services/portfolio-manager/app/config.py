@@ -12,6 +12,6 @@ class Config:
 
 config = Config()
 
-# #2: Fail fast if JWT_SECRET is empty
+# Fail fast if JWT_SECRET is empty — prevents token forgery
 if not config.JWT_SECRET:
-    print("WARNING: RISK_JWT_SECRET is empty — JWT tokens can be forged!", file=sys.stderr)
+    raise RuntimeError("RISK_JWT_SECRET must be set — empty value allows token forgery")

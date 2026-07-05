@@ -243,9 +243,15 @@ func (m *Manager) Stop(strategyID string) error {
 
 // StopAll stops all strategies and waits for all goroutines to exit.
 func (m *Manager) StopAll() {
+	// #8: Copy runners under RLock, then stop outside lock to prevent deadlock
 	m.mu.RLock()
-	defer m.mu.RUnlock()
+	runners := make([]*Runner, 0, len(m.runners))
 	for _, runner := range m.runners {
+		runners = append(runners, runner)
+	}
+	m.mu.RUnlock()
+
+	for _, runner := range runners {
 		runner.Stop()
 	}
 }

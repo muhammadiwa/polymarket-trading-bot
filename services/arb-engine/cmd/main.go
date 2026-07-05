@@ -276,10 +276,6 @@ func processMarketEvent(
 			metrics.CrossMarketDetected.Inc()
 			metrics.CrossMarketScore.Observe(crossOpp.Score.InexactFloat64())
 
-			if cascadeRisk {
-				metrics.CascadeRiskDetected.Inc()
-			}
-
 			emitted := thresholdFilter.Filter(crossOpp)
 			if emitted {
 				publishOpportunity(ctx, publisher, crossOpp, log)
@@ -341,13 +337,11 @@ func (c *priceCache) set(marketID string, price ports.MarketPriceUpdated) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.prices[marketID] = price
-	// #4: Periodic eviction of stale entries
-	if len(c.prices) > 1000 {
-		now := time.Now()
-		for k, v := range c.prices {
-			if now.Sub(v.Timestamp) > c.maxAge {
-				delete(c.prices, k)
-			}
+	// #4: Always evict stale entries on write
+	now := time.Now()
+	for k, v := range c.prices {
+		if now.Sub(v.Timestamp) > c.maxAge {
+			delete(c.prices, k)
 		}
 	}
 }
@@ -394,8 +388,8 @@ func startMetricsServer(bindAddr, port string, log *zap.Logger, natsPublisher *a
 				status = "degraded"
 				code = http.StatusServiceUnavailable
 			}
-			w.WriteHeader(code)
 			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(code)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"status":  status,
 				"checks":  checks,
