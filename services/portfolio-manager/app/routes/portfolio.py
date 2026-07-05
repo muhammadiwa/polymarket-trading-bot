@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -13,11 +14,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 
+def _validate_uuid(value: Optional[str], field_name: str = "account_id") -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        UUID(value)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name} format")
+    return value
+
+
 @router.get("/overview", response_model=PortfolioOverview)
 async def get_overview(
     account_id: Optional[str] = Query(None),
     _user: dict = Depends(verify_jwt),
 ):
+    _validate_uuid(account_id)
     pool = await get_pool()
     async with pool.acquire() as conn:
         overview = await portfolio_repo.get_overview(conn, account_id)
@@ -38,6 +50,7 @@ async def update_capital(
     if deployed_capital > total_capital:
         raise HTTPException(status_code=400, detail="Deployed capital cannot exceed total")
 
+    _validate_uuid(account_id)
     pool = await get_pool()
     async with pool.acquire() as conn:
         overview = await portfolio_repo.update_capital(conn, total_capital, deployed_capital, account_id)
@@ -59,9 +72,7 @@ async def rebalance(
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        # Get current weights (from strategy-manager or stored)
-        old_weights = {}  # Would fetch from strategy-manager in production
-
+        old_weights = {}  # TODO: fetch from strategy-manager service
         await portfolio_repo.log_rebalance(conn, old_weights, body.weights, user.get("user_id"), account_id)
 
     logger.info("portfolio rebalance executed", extra={"weights": body.weights, "user": user.get("user_id")})
@@ -79,6 +90,7 @@ async def get_tier_transitions(
     limit: int = Query(50, ge=1, le=200),
     _user: dict = Depends(verify_jwt),
 ):
+    _validate_uuid(account_id)
     pool = await get_pool()
     async with pool.acquire() as conn:
         transitions = await portfolio_repo.get_tier_transitions(conn, account_id, limit)

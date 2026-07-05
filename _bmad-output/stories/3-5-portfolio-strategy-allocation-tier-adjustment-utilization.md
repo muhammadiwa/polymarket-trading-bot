@@ -154,21 +154,24 @@ mimo-v2.5-pro
 
 ### Completion Notes List
 
-- Task 1: Capital tier system with 4 tiers, promotion/demotion logic
+- Task 1: Capital tier system with 4 tiers, promotion (7 calendar days), immediate demotion
 - Task 2: Utilization tracking with API endpoint
-- Task 3: Rebalance endpoint with logging
-- Task 4: Portfolio transitions history endpoint
+- Task 3: Rebalance endpoint with logging (execution TODO)
+- Task 4: Tier transition history endpoint
 
 ### File List
 
 **New files:**
 - `migrations/postgres/013_create_portfolio_tiers.up/down.sql`
-- `services/portfolio-manager/app/main.py`
-- `services/portfolio-manager/app/config.py`
-- `services/portfolio-manager/app/db.py`
-- `services/portfolio-manager/app/middleware/auth.py`
-- `services/portfolio-manager/app/models/portfolio.py`
-- `services/portfolio-manager/app/repos/portfolio_repo.py`
-- `services/portfolio-manager/app/routes/portfolio.py`
-- `services/portfolio-manager/requirements.txt`
-- `services/portfolio-manager/Dockerfile`
+- `services/portfolio-manager/` (complete service)
+
+### Code Review Fixes Applied
+
+- Missing TIER_THRESHOLDS import (NameError)
+- JWT_SECRET empty warning
+- SELECT FOR UPDATE for race prevention
+- UniqueViolationError handling on concurrent INSERT
+- Transaction wrapping for atomicity
+- Calendar-based day tracking (not invocation-based)
+- UUID validation on account_id
+- Negative value guard in repo layer
