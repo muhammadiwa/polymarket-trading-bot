@@ -235,8 +235,10 @@ func processMarketEvent(
 			publishOpportunity(ctx, publisher, opp, log)
 		} else {
 			metrics.OpportunitiesFiltered.Inc()
+			opp.FilterReason = "below_score_threshold" // #2: Set filter reason
 		}
 
+		// #2: Log ALL opportunities (including filtered)
 		if err := oppLogger.Log(ctx, *opp); err != nil {
 			log.Error("failed to log opportunity", zap.String("opportunity_id", opp.ID), zap.Error(err))
 		}
@@ -244,8 +246,27 @@ func processMarketEvent(
 
 	// Cross-market arb (new)
 	if crossDetector != nil {
-		crossOpps := crossDetector.Detect(ctx, event, priceCache.getAll())
+		// #1: Single getAll() call for consistent snapshot
+		prices := priceCache.getAll()
+
+		// #1: Detect cascade risk with same snapshot
+		cascadeRisk, correlatedIDs := crossDetector.DetectCascadeRisk(ctx, event, prices)
+
+		// #2: Log cascade risk even if no opportunities emitted
+		if cascadeRisk {
+			metrics.CascadeRiskDetected.Inc()
+			log.Warn("cascade risk detected",
+				zap.String("market_id", event.MarketID),
+				zap.Strings("correlated_markets", correlatedIDs),
+			)
+		}
+
+		crossOpps := crossDetector.Detect(ctx, event, prices)
 		for _, crossOpp := range crossOpps {
+			// Set cascade risk on opportunity
+			crossOpp.CascadeRisk = cascadeRisk
+			crossOpp.CorrelatedMarketIDs = correlatedIDs
+
 			// #15: Use related market's liquidity if available
 			liquidityDepth := event.LiquidityDepth
 			if relatedPrice, ok := priceCache.get(crossOpp.RelatedMarketID); ok {
@@ -255,13 +276,22 @@ func processMarketEvent(
 			metrics.CrossMarketDetected.Inc()
 			metrics.CrossMarketScore.Observe(crossOpp.Score.InexactFloat64())
 
+			if cascadeRisk {
+				metrics.CascadeRiskDetected.Inc()
+			}
+
 			emitted := thresholdFilter.Filter(crossOpp)
 			if emitted {
 				publishOpportunity(ctx, publisher, crossOpp, log)
 			} else {
 				metrics.OpportunitiesFiltered.Inc()
+				// #3: Only set filter reason if not already set
+				if crossOpp.FilterReason == "" {
+					crossOpp.FilterReason = "below_score_threshold"
+				}
 			}
 
+			// #2: Log ALL opportunities (including filtered)
 			if err := oppLogger.Log(ctx, *crossOpp); err != nil {
 				log.Error("failed to log cross-market opportunity", zap.String("opportunity_id", crossOpp.ID), zap.Error(err))
 			}
@@ -290,6 +320,8 @@ func publishOpportunity(ctx context.Context, publisher *adapters.NATSPublisher, 
 			RelationshipType: opp.RelationshipType,
 			NearResolution:   opp.NearResolution,
 			ConfidenceFactor: opp.ConfidenceFactor,
+			CascadeRisk:      opp.CascadeRisk,
+			CorrelatedMarketIDs: opp.CorrelatedMarketIDs,
 		},
 	}
 
@@ -309,6 +341,15 @@ func (c *priceCache) set(marketID string, price ports.MarketPriceUpdated) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.prices[marketID] = price
+	// #4: Periodic eviction of stale entries
+	if len(c.prices) > 1000 {
+		now := time.Now()
+		for k, v := range c.prices {
+			if now.Sub(v.Timestamp) > c.maxAge {
+				delete(c.prices, k)
+			}
+		}
+	}
 }
 
 func (c *priceCache) get(marketID string) (ports.MarketPriceUpdated, bool) {

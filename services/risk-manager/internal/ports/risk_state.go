@@ -30,6 +30,7 @@ type PitBossState struct {
 	Capital                decimal.Decimal            `json:"capital"`
 	MarketLimits           map[string]LimitEntry      `json:"market_limits"`
 	StrategyLimits         map[string]LimitEntry      `json:"strategy_limits"`
+	StrategyWeights        map[string]decimal.Decimal `json:"strategy_weights"` // #2: per-strategy capital allocation
 	EmergencyStop          bool                       `json:"emergency_stop"`
 	EmergencyStopReason    string                     `json:"emergency_stop_reason"`
 	EmergencyStopTimestamp *time.Time                 `json:"emergency_stop_timestamp"`

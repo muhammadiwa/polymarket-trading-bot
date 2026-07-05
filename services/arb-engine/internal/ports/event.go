@@ -25,6 +25,10 @@ type Opportunity struct {
 	RelationshipType string  `json:"relationship_type,omitempty"`
 	NearResolution   bool    `json:"near_resolution,omitempty"`
 	ConfidenceFactor float64 `json:"confidence_factor,omitempty"`
+
+	// Cascade risk fields (Story 3.6)
+	CascadeRisk         bool     `json:"cascade_risk,omitempty"`
+	CorrelatedMarketIDs []string `json:"correlated_market_ids,omitempty"`
 }
 
 type OpportunityDetected struct {
@@ -51,6 +55,10 @@ type OpportunityPayload struct {
 	RelationshipType string  `json:"relationship_type,omitempty"`
 	NearResolution   bool    `json:"near_resolution,omitempty"`
 	ConfidenceFactor float64 `json:"confidence_factor,omitempty"`
+
+	// Cascade risk fields (Story 3.6)
+	CascadeRisk         bool     `json:"cascade_risk,omitempty"`
+	CorrelatedMarketIDs []string `json:"correlated_market_ids,omitempty"`
 }
 
 type EventPort interface {

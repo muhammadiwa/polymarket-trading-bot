@@ -60,12 +60,23 @@ func (d *CrossMarketDetector) Detect(ctx context.Context, event ports.MarketPric
 	}
 
 	var opportunities []*ports.Opportunity
+	seen := make(map[string]bool) // #7: Deduplicate bidirectional relationships
 
 	for _, rel := range related {
 		relatedPrice, ok := prices[rel.MarketBID]
 		if !ok {
 			continue
 		}
+
+		// #7: Skip if we already processed this market pair
+		pairKey := rel.MarketAID + ":" + rel.MarketBID
+		if pairKey > rel.MarketBID+":"+rel.MarketAID {
+			pairKey = rel.MarketBID + ":" + rel.MarketAID
+		}
+		if seen[pairKey] {
+			continue
+		}
+		seen[pairKey] = true
 
 		opp := d.evaluatePair(event, relatedPrice, rel)
 		if opp != nil {
@@ -87,27 +98,18 @@ func (d *CrossMarketDetector) Detect(ctx context.Context, event ports.MarketPric
 func (d *CrossMarketDetector) evaluatePair(eventA, eventB ports.MarketPriceUpdated, rel ports.MarketRelationship) *ports.Opportunity {
 	one := decimal.RequireFromString("1.00")
 
-	// Strategy: Buy YES on A + Buy NO on B (or vice versa) when prices are misaligned
-	// For same-event: if A.YES + B.NO < 1.00 - threshold, there's an arbitrage
-	// For date-variant: if A.YES is significantly cheaper than B.YES (earlier deadline should be more expensive)
-	// For correlated-outcome: if A.YES and B.YES diverge beyond correlation threshold
-
 	var spread decimal.Decimal
 	var marketAID, marketBID string
 
 	switch rel.RelationshipType {
 	case "same_event":
-		// Buy YES_A + NO_B when YES_A + NO_B < 1.00
 		sum := eventA.YESPrice.Add(eventB.NOPrice)
 		spread = one.Sub(sum)
 		marketAID = eventA.MarketID
 		marketBID = eventB.MarketID
 
 	case "date_variant":
-		// Earlier deadline (A) should have higher YES price than later deadline (B)
-		// If A.YES < B.YES, buy A.YES (cheaper) for same underlying question
 		spread = eventB.YESPrice.Sub(eventA.YESPrice)
-		// #4: Guard against negative spread
 		if spread.IsNegative() {
 			return nil
 		}
@@ -115,10 +117,7 @@ func (d *CrossMarketDetector) evaluatePair(eventA, eventB ports.MarketPriceUpdat
 		marketBID = eventB.MarketID
 
 	case "correlated_outcome":
-		// If A.YES and B.YES diverge significantly, there's an opportunity
-		// Spread = |A.YES - B.YES| * correlation_confidence
 		diff := eventA.YESPrice.Sub(eventB.YESPrice).Abs()
-		// #13: Clamp confidence to [0, 1]
 		confidence := rel.Confidence
 		if confidence < 0 {
 			confidence = 0
@@ -134,19 +133,32 @@ func (d *CrossMarketDetector) evaluatePair(eventA, eventB ports.MarketPriceUpdat
 		return nil
 	}
 
-	if spread.LessThanOrEqual(d.minProfitThreshold) {
-		return nil
-	}
-
-	// Check near-resolution for both markets
+	// #5: Compute near-resolution before threshold check
 	nearResA, factorA := d.nearResolution.Check(eventA.MarketID)
 	nearResB, factorB := d.nearResolution.Check(eventB.MarketID)
 	confidenceFactor := factorA
 	if factorB < confidenceFactor {
 		confidenceFactor = factorB
 	}
-
 	nearRes := nearResA || nearResB
+
+	// Return opportunity with filter_reason instead of nil for below-threshold
+	if spread.LessThanOrEqual(d.minProfitThreshold) {
+		return &ports.Opportunity{
+			ID:               uuid.New().String(),
+			MarketID:         marketAID,
+			YESPrice:         eventA.YESPrice,
+			NOPrice:          eventA.NOPrice,
+			Spread:           spread,
+			Score:            decimal.Zero,
+			FilterReason:     "spread_below_threshold",
+			DetectedAt:       time.Now().UTC(),
+			RelatedMarketID:  marketBID,
+			RelationshipType: rel.RelationshipType,
+			NearResolution:   nearRes,
+			ConfidenceFactor: confidenceFactor,
+		}
+	}
 
 	opp := &ports.Opportunity{
 		ID:               uuid.New().String(),
@@ -163,4 +175,60 @@ func (d *CrossMarketDetector) evaluatePair(eventA, eventB ports.MarketPriceUpdat
 	}
 
 	return opp
+}
+
+// DetectCascadeRisk checks if multiple correlated markets have concurrent opportunities.
+// Returns true if 2+ correlated markets also have spreads above threshold.
+func (d *CrossMarketDetector) DetectCascadeRisk(
+	ctx context.Context,
+	event ports.MarketPriceUpdated,
+	prices map[string]ports.MarketPriceUpdated,
+) (bool, []string) {
+	related, err := d.registry.GetRelatedMarkets(ctx, event.MarketID)
+	if err != nil {
+		// #6: Log repository errors instead of swallowing
+		d.logger.Error("failed to get related markets for cascade risk", zap.String("market_id", event.MarketID), zap.Error(err))
+		return false, nil
+	}
+	if len(related) == 0 {
+		return false, nil
+	}
+
+	one := decimal.RequireFromString("1.00")
+	var correlatedIDs []string
+
+	for _, rel := range related {
+		relatedPrice, ok := prices[rel.MarketBID]
+		if !ok {
+			continue
+		}
+
+		var spread decimal.Decimal
+		switch rel.RelationshipType {
+		case "same_event":
+			// #6: Align with evaluatePair — cross-market spread
+			spread = one.Sub(event.YESPrice).Sub(relatedPrice.NOPrice)
+		case "date_variant":
+			// #3: Align with evaluatePair — related market price - event price
+			spread = relatedPrice.YESPrice.Sub(event.YESPrice)
+		case "correlated_outcome":
+			diff := event.YESPrice.Sub(relatedPrice.YESPrice).Abs()
+			// #4: Clamp confidence to [0, 1]
+			confidence := rel.Confidence
+			if confidence < 0 {
+				confidence = 0
+			}
+			if confidence > 1 {
+				confidence = 1
+			}
+			spread = diff.Mul(decimal.NewFromFloat(confidence))
+		}
+
+		if spread.GreaterThan(d.minProfitThreshold) {
+			correlatedIDs = append(correlatedIDs, rel.MarketBID)
+		}
+	}
+
+	cascadeRisk := len(correlatedIDs) >= 2
+	return cascadeRisk, correlatedIDs
 }
