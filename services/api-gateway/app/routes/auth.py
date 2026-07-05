@@ -51,6 +51,8 @@ async def login(body: LoginRequest, request: Request, response: Response):
         )
 
     if not row:
+        # #2: Burn equivalent CPU time to prevent username enumeration via timing
+        pwd_context.hash("dummy_password_to_equalize_timing")
         record_login_attempt(body.username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -129,6 +131,9 @@ async def get_csrf_token(response: Response):
 @router.post("/refresh")
 async def refresh_token(request: Request, response: Response):
     user = extract_user(request)
+
+    # #6: Rate limit token refresh to prevent stolen token lifetime extension
+    await check_rate_limit_async(user.get("username", ""))
 
     pool = await get_pool()
     async with pool.acquire() as conn:

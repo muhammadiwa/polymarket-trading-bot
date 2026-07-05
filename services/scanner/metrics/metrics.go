@@ -7,7 +7,7 @@ import (
 
 var (
 	MarketsTracked = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "pqap_scanner_markets_tracked_total",
+		Name: "pqap_scanner_markets_tracked",
 		Help: "Total number of active markets being tracked",
 	})
 
@@ -18,12 +18,12 @@ var (
 	})
 
 	WSConnectionStatus = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "pqap_scanner_ws_connection_status",
+		Name: "pqap_scanner_ws_connected",
 		Help: "WebSocket connection status (1=connected, 0=disconnected)",
 	})
 
 	StaleMarkets = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "pqap_scanner_stale_markets_total",
+		Name: "pqap_scanner_stale_markets",
 		Help: "Total number of stale markets",
 	})
 
