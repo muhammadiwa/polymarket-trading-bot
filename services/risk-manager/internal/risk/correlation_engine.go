@@ -98,6 +98,9 @@ func NewCorrelationEngine(threshold float64, updateInterval time.Duration, maxPo
 // #26: Start begins a background ticker that periodically calls UpdateGroups.
 func (ce *CorrelationEngine) Start(ctx context.Context) {
 	ce.mu.Lock()
+	if ce.cancel != nil {
+		ce.cancel()
+	}
 	ctx, ce.cancel = context.WithCancel(ctx)
 	ce.mu.Unlock()
 	go ce.updateLoop(ctx)
@@ -148,7 +151,6 @@ func (ce *CorrelationEngine) SetCategoryGroup(category string, marketIDs []strin
 // #22: Clear stale groups before rebuilding to avoid stale entries persisting.
 func (ce *CorrelationEngine) UpdateGroups() {
 	ce.mu.Lock()
-	defer ce.mu.Unlock()
 
 	// Clear only auto-detected groups (category, keyword, correlation) before rebuild
 	for id, g := range ce.groups {
@@ -161,11 +163,21 @@ func (ce *CorrelationEngine) UpdateGroups() {
 	ce.detectKeywordGroups()
 	ce.detectCorrelationGroups()
 
-	// #8: Persist groups to repository
+	// #14: Snapshot groups under lock, then persist without lock
+	snapshot := make([]*CorrelationGroup, 0, len(ce.groups))
+	for _, g := range ce.groups {
+		gCopy := *g
+		gCopy.MarketIDs = make([]string, len(g.MarketIDs))
+		copy(gCopy.MarketIDs, g.MarketIDs)
+		snapshot = append(snapshot, &gCopy)
+	}
+	ce.mu.Unlock()
+
+	// #8: Persist groups to repository (outside lock)
 	if ce.repo != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		for _, g := range ce.groups {
+		for _, g := range snapshot {
 			data := ports.CorrelationGroupData{
 				ID:              g.ID,
 				Name:            g.Name,
@@ -303,6 +315,11 @@ func (ce *CorrelationEngine) computeCorrelationMatrix() {
 		for j := i + 1; j < len(markets); j++ {
 			corr := pearsonCorrelation(ce.priceHistory[markets[i]], ce.priceHistory[markets[j]])
 			ce.correlationMatrix[markets[i]][markets[j]] = corr
+			// Store symmetric pair so both directions are discoverable
+			if ce.correlationMatrix[markets[j]] == nil {
+				ce.correlationMatrix[markets[j]] = make(map[string]float64)
+			}
+			ce.correlationMatrix[markets[j]][markets[i]] = corr
 		}
 	}
 }
@@ -326,7 +343,11 @@ func (ce *CorrelationEngine) GetGroupsForMarket(marketID string) []CorrelationGr
 	for _, g := range ce.groups {
 		for _, id := range g.MarketIDs {
 			if id == marketID {
-				result = append(result, *g)
+				// #17: Deep copy to prevent shared slice mutation
+				gCopy := *g
+				gCopy.MarketIDs = make([]string, len(g.MarketIDs))
+				copy(gCopy.MarketIDs, g.MarketIDs)
+				result = append(result, gCopy)
 				break
 			}
 		}

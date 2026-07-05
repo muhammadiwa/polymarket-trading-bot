@@ -44,6 +44,9 @@ func NewMetabolicMonitor(cpuThreshold float64, memoryThreshold uint64, goroutine
 
 func (mm *MetabolicMonitor) Start(ctx context.Context) {
 	mm.mu.Lock()
+	if mm.cancel != nil {
+		mm.cancel()
+	}
 	ctx, mm.cancel = context.WithCancel(ctx)
 	mm.mu.Unlock()
 	go mm.monitorLoop(ctx)

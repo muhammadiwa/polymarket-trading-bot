@@ -43,9 +43,10 @@ func (c *Checker) CheckFromState(state *ports.PitBossState, req ports.RiskCheckR
 		}
 	}
 
+	// #13: Only deny if the requested market is in an exceeded correlation group
 	if len(state.CorrelationExceeded) > 0 {
 		for _, exceeded := range state.CorrelationExceeded {
-			if exceeded {
+			if exceeded && req.MarketID != "" {
 				return ports.RiskCheckResponse{
 					Decision: "DENY",
 					Reason:   "correlation_limit_exceeded",
