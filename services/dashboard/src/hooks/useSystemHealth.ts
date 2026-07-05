@@ -20,23 +20,27 @@ export function useSystemHealth(): UseSystemHealthResult {
   const [error, setError] = useState<string | null>(null);
   const wsDataReceived = useRef(false);
 
-  // #15: Reset wsDataReceived on WS disconnect
+  // Reset wsDataReceived on WS disconnect
   useEffect(() => {
     if (wsStatus === "disconnected") {
       wsDataReceived.current = false;
     }
   }, [wsStatus]);
 
+  // WS effect — always apply
   useEffect(() => {
-    if (healthData && !wsDataReceived.current) {
+    if (healthData) {
       wsDataReceived.current = true;
       setData(healthData);
       setLoading(false);
+      setError(null);
     }
   }, [healthData]);
 
-  // #17: Initial fetch + 5s polling fallback
+  // #2: Polling only when WS is NOT connected
   useEffect(() => {
+    if (wsStatus === "connected") return; // WS is authoritative
+
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -46,6 +50,7 @@ export function useSystemHealth(): UseSystemHealthResult {
         if (!cancelled && !wsDataReceived.current) {
           setData(health);
           setLoading(false);
+          setError(null); // #8: Clear error on success
         }
       } catch (err) {
         if (!cancelled) {
@@ -62,12 +67,15 @@ export function useSystemHealth(): UseSystemHealthResult {
       cancelled = true;
       if (intervalId) clearInterval(intervalId);
     };
-  }, []);
+  }, [wsStatus]);
 
+  // #6: refresh with WS guard
   const refresh = async () => {
     try {
       const health = await fetchSystemHealth();
-      setData(health);
+      if (!wsDataReceived.current) {
+        setData(health);
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to refresh system health");
