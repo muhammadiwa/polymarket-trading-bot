@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useMemo } from "react";
 import { useOpportunityFeed, type OpportunityStatusFilter } from "@/hooks/useOpportunityFeed";
 import type { Opportunity } from "@/types";
 
@@ -16,13 +16,13 @@ function statusBadgeColor(status: Opportunity["status"]): string {
 
 function formatScore(score: string): string {
   const num = Number(score);
-  if (isNaN(num)) return score;
+  if (isNaN(num) || !isFinite(num)) return score;
   return num.toFixed(4);
 }
 
 function formatSpread(spread: string): string {
   const num = Number(spread);
-  if (isNaN(num)) return spread;
+  if (isNaN(num) || !isFinite(num)) return spread;
   return `$${num.toFixed(2)}`;
 }
 
@@ -121,6 +121,12 @@ export function OpportunityFeed() {
   const { opportunities, loading, error, loadMore, hasMore, filter, setFilter } = useOpportunityFeed();
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // #3: Client-side filter for display (WS stores all, filter here)
+  const filteredOpportunities = useMemo(() => {
+    if (filter === "all") return opportunities;
+    return opportunities.filter((o) => o.status === filter);
+  }, [opportunities, filter]);
+
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el || !hasMore || loading) return;
@@ -148,7 +154,7 @@ export function OpportunityFeed() {
 
         {error && (
           <div className="px-4 py-3 text-[#ff4757] text-sm" role="alert">
-            {error}
+            Failed to load opportunities. Please try again.
           </div>
         )}
 
@@ -159,19 +165,19 @@ export function OpportunityFeed() {
           role="list"
           aria-label="Opportunity list"
         >
-          {loading && opportunities.length === 0 && (
+          {loading && filteredOpportunities.length === 0 && (
             <div className="px-4 py-8 text-center text-gray-400 text-sm" aria-busy="true">
               Loading opportunities...
             </div>
           )}
 
-          {!loading && opportunities.length === 0 && (
+          {!loading && filteredOpportunities.length === 0 && (
             <div className="px-4 py-8 text-center text-gray-500 text-sm">
               No opportunities found
             </div>
           )}
 
-          {opportunities.map((opp) => (
+          {filteredOpportunities.map((opp) => (
             <OpportunityRow key={opp.id} opp={opp} />
           ))}
 
@@ -184,7 +190,7 @@ export function OpportunityFeed() {
             </button>
           )}
 
-          {loading && opportunities.length > 0 && (
+          {loading && filteredOpportunities.length > 0 && (
             <div className="px-4 py-3 text-center text-gray-400 text-xs" aria-busy="true">
               Loading more...
             </div>

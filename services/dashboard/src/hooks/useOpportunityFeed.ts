@@ -26,39 +26,49 @@ export function useOpportunityFeed(): UseOpportunityFeedResult {
   const [hasMore, setHasMore] = useState(true);
   const [filter, setFilter] = useState<OpportunityStatusFilter>("all");
   const cursorRef = useRef<string | null>(null);
+  const loadingRef = useRef(false);
+  const hasMoreRef = useRef(true);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
+    loadingRef.current = true;
     try {
-      // #5: Pass status filter as query parameter to API instead of client-side filtering
       const resp = await fetchOpportunities(undefined, 50, filter === "all" ? undefined : filter);
-      // #17: Deduplicate API results by id in case WS has already delivered some
+      // #4: Filter WS-only items by current filter
       setOpportunities((prev) => {
         const existingIds = new Set(resp.opportunities.map((o) => o.id));
-        const wsOnly = prev.filter((o) => !existingIds.has(o.id));
+        const wsOnly = prev.filter((o) => !existingIds.has(o.id) && (filter === "all" || o.status === filter));
         return [...resp.opportunities, ...wsOnly];
       });
       setNextCursor(resp.next_cursor);
       setHasMore(resp.next_cursor !== null);
+      hasMoreRef.current = resp.next_cursor !== null;
       cursorRef.current = resp.next_cursor;
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load opportunities");
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
   }, [filter]);
 
+  // #5: loadMore with loading guard
   const loadMore = useCallback(async () => {
-    if (!cursorRef.current) return;
+    if (!cursorRef.current || loadingRef.current) return;
+    loadingRef.current = true;
     try {
       const resp = await fetchOpportunities(cursorRef.current, 50, filter === "all" ? undefined : filter);
       setOpportunities((prev) => [...prev, ...resp.opportunities]);
       setNextCursor(resp.next_cursor);
       setHasMore(resp.next_cursor !== null);
+      hasMoreRef.current = resp.next_cursor !== null;
       cursorRef.current = resp.next_cursor;
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load more opportunities");
+    } finally {
+      loadingRef.current = false;
     }
   }, [filter]);
 
@@ -68,16 +78,14 @@ export function useOpportunityFeed(): UseOpportunityFeedResult {
 
   useEffect(() => {
     const unsubscribe = onOpportunity((opp) => {
-      if (filter === "all" || opp.status === filter) {
-        // #19: Deduplicate by id on prepend
-        setOpportunities((prev) => {
-          if (prev.some((o) => o.id === opp.id)) return prev;
-          return [opp, ...prev];
-        });
-      }
+      // #3: Always store WS opportunities, filter at render time
+      setOpportunities((prev) => {
+        if (prev.some((o) => o.id === opp.id)) return prev;
+        return [opp, ...prev];
+      });
     });
     return unsubscribe;
-  }, [onOpportunity, filter]);
+  }, [onOpportunity]);
 
   return { opportunities, loading, error, loadMore, hasMore, filter, setFilter };
 }

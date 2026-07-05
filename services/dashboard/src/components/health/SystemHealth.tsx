@@ -77,7 +77,7 @@ function ServiceCard({ service }: { service: ServiceHealth }) {
           <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${cpuBarColor(service.cpuPercent)}`}
-              style={{ width: `${Math.min(100, service.cpuPercent)}%` }}
+              style={{ width: `${Math.max(0, Math.min(100, service.cpuPercent))}%` }}
             />
           </div>
         </div>
@@ -162,13 +162,24 @@ export function SystemHealth() {
           <h2 className="text-lg font-semibold text-white">System Health</h2>
         </div>
         <div className="rounded-xl border border-[#ff4757]/30 bg-[#ff4757]/10 backdrop-blur-md p-5 text-[#ff4757]" role="alert">
-          Failed to load system health: {error}
+          Failed to load system health. Please try again.
         </div>
       </section>
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <section className="space-y-4" aria-label="System Health">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">System Health</h2>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-md p-5 text-gray-400">
+          No health data available
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-4" aria-label="System Health">
@@ -199,9 +210,11 @@ export function SystemHealth() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {SERVICES.map(({ key }) => (
-          <ServiceCard key={key} service={data[key]} />
-        ))}
+        {SERVICES.map(({ key }) => {
+          const service = data[key];
+          if (!service) return null;
+          return <ServiceCard key={key} service={service} />;
+        })}
       </div>
     </section>
   );
