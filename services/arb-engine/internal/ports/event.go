@@ -19,6 +19,12 @@ type Opportunity struct {
 	FilterReason    string          `json:"filter_reason"`
 	DetectedAt      time.Time       `json:"detected_at"`
 	LatencyMs       int64           `json:"latency_ms"`
+
+	// Cross-market fields (optional)
+	RelatedMarketID  string  `json:"related_market_id,omitempty"`
+	RelationshipType string  `json:"relationship_type,omitempty"`
+	NearResolution   bool    `json:"near_resolution,omitempty"`
+	ConfidenceFactor float64 `json:"confidence_factor,omitempty"`
 }
 
 type OpportunityDetected struct {
@@ -39,6 +45,12 @@ type OpportunityPayload struct {
 	FillProbability decimal.Decimal `json:"fill_probability"`
 	Liquidity       decimal.Decimal `json:"liquidity"`
 	StrategyID      string          `json:"strategy_id"`
+
+	// Cross-market fields (optional)
+	RelatedMarketID  string  `json:"related_market_id,omitempty"`
+	RelationshipType string  `json:"relationship_type,omitempty"`
+	NearResolution   bool    `json:"near_resolution,omitempty"`
+	ConfidenceFactor float64 `json:"confidence_factor,omitempty"`
 }
 
 type EventPort interface {
@@ -49,5 +61,21 @@ type EventPort interface {
 type OpportunityLogger interface {
 	Log(ctx context.Context, opp Opportunity) error
 	GetHistoricalFillRate(ctx context.Context, marketID string, days int) (decimal.Decimal, int, error)
+	Close() error
+}
+
+type MarketRelationship struct {
+	ID              string  `json:"id"`
+	MarketAID       string  `json:"market_a_id"`
+	MarketBID       string  `json:"market_b_id"`
+	RelationshipType string `json:"relationship_type"`
+	Confidence      float64 `json:"confidence"`
+}
+
+type RelationshipRepository interface {
+	GetRelationships(ctx context.Context) ([]MarketRelationship, error)
+	GetRelatedMarkets(ctx context.Context, marketID string) ([]MarketRelationship, error)
+	UpsertRelationship(ctx context.Context, rel MarketRelationship) error
+	DeleteRelationship(ctx context.Context, id string) error
 	Close() error
 }

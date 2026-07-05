@@ -18,6 +18,7 @@ import (
 	"github.com/pqap/services/arb-engine/internal/filter"
 	"github.com/pqap/services/arb-engine/internal/logger"
 	"github.com/pqap/services/arb-engine/internal/ports"
+	"github.com/pqap/services/arb-engine/internal/relationships"
 	"github.com/pqap/services/arb-engine/internal/scorer"
 	"github.com/pqap/services/arb-engine/metrics"
 	"go.uber.org/zap"
@@ -90,6 +91,27 @@ func main() {
 
 	thresholdFilter := filter.NewThresholdFilter(cfg.ScoreThreshold)
 
+	// Cross-Market Arbitrage setup
+	var crossMarketDetector *detector.CrossMarketDetector
+	var relRegistry *relationships.Registry
+	if cfg.CrossMarketEnabled {
+		postgresRepo, err := adapters.NewPostgresRepo(cfg.PostgresURL, log)
+		if err != nil {
+			log.Warn("failed to connect to PostgreSQL for market relationships, cross-market disabled", zap.Error(err))
+		} else {
+			nearRes := detector.NewNearResolutionDetector(cfg.NearResolutionWindowMin, cfg.NearResolutionThreshold, log)
+			relRegistry = relationships.NewRegistry(postgresRepo, log)
+			if err := relRegistry.Refresh(ctx); err != nil {
+				log.Warn("failed to refresh relationship registry", zap.Error(err))
+			}
+			relRegistry.StartRefreshLoop(ctx)
+			crossMarketDetector = detector.NewCrossMarketDetector(
+				relRegistry, nearRes, cfg.MinProfitThreshold, cfg.CrossMarketScoreThreshold, log,
+			)
+			log.Info("cross-market arbitrage enabled")
+		}
+	}
+
 	natsPublisher, err := adapters.NewNATSPublisher(cfg.NATSURL, log)
 	if err != nil {
 		log.Fatal("failed to connect to NATS publisher", zap.Error(err))
@@ -102,18 +124,23 @@ func main() {
 
 	dedup := newDeduplicator(10000)
 
+	// Store latest prices for cross-market detection
+	priceCache := &priceCache{prices: make(map[string]ports.MarketPriceUpdated)}
+
 	natsSubscriber.StartWorkers(ctx, func(event ports.MarketPriceUpdated) {
 		if dedup.isDuplicate(event.MarketID + event.Timestamp.String()) {
 			return
 		}
-		processMarketEvent(ctx, event, arbDetector, scorerEngine, thresholdFilter, natsPublisher, oppLogger, log)
+		priceCache.set(event.MarketID, event)
+		processMarketEvent(ctx, event, arbDetector, crossMarketDetector, scorerEngine, thresholdFilter, natsPublisher, oppLogger, priceCache, log)
 	}, 4)
 
 	err = natsSubscriber.Subscribe(ctx, func(event ports.MarketPriceUpdated) {
 		if dedup.isDuplicate(event.MarketID + event.Timestamp.String()) {
 			return
 		}
-		processMarketEvent(ctx, event, arbDetector, scorerEngine, thresholdFilter, natsPublisher, oppLogger, log)
+		priceCache.set(event.MarketID, event)
+		processMarketEvent(ctx, event, arbDetector, crossMarketDetector, scorerEngine, thresholdFilter, natsPublisher, oppLogger, priceCache, log)
 	})
 	if err != nil {
 		log.Fatal("failed to subscribe to NATS", zap.Error(err))
@@ -161,11 +188,13 @@ func main() {
 func processMarketEvent(
 	ctx context.Context,
 	event ports.MarketPriceUpdated,
-	detector *detector.SimpleArbDetector,
+	simpleDetector *detector.SimpleArbDetector,
+	crossDetector *detector.CrossMarketDetector,
 	scorerEngine *scorer.Scorer,
 	thresholdFilter *filter.ThresholdFilter,
 	publisher *adapters.NATSPublisher,
 	oppLogger *logger.OpportunityLogger,
+	priceCache *priceCache,
 	log *zap.Logger,
 ) {
 	if event.IsStale {
@@ -174,64 +203,106 @@ func processMarketEvent(
 		return
 	}
 
-	opp, latencyMs := detector.Detect(event)
-	if opp == nil {
-		return
-	}
+	// Simple YES+NO arb (existing)
+	opp, latencyMs := simpleDetector.Detect(event)
+	if opp != nil {
+		metrics.OpportunitiesDetected.Inc()
+		metrics.DetectionLatency.Observe(float64(latencyMs))
 
-	metrics.OpportunitiesDetected.Inc()
-	metrics.DetectionLatency.Observe(float64(latencyMs))
-
-	if latencyMs > 100 {
-		log.Warn("detection latency exceeded 100ms",
-			zap.String("market_id", event.MarketID),
-			zap.Int64("latency_ms", latencyMs),
-		)
-	}
-
-	scorerEngine.Score(ctx, opp, event.LiquidityDepth, event.MarketID)
-
-	metrics.ScoreDistribution.Observe(opp.Score.InexactFloat64())
-	metrics.FillProbabilityEstimate.Observe(opp.FillProbability.InexactFloat64())
-
-	emitted := thresholdFilter.Filter(opp)
-
-	if emitted {
-		metrics.OpportunitiesEmitted.Inc()
-
-		oppEvent := ports.OpportunityDetected{
-			EventID:   uuid.New().String(),
-			EventType: "OpportunityDetected",
-			Timestamp: time.Now().UTC(),
-			Source:    "arb-engine",
-			Payload: ports.OpportunityPayload{
-				OpportunityID:  opp.ID,
-				MarketID:       opp.MarketID,
-				YESPrice:       opp.YESPrice,
-				NOPrice:        opp.NOPrice,
-				Spread:         opp.Spread,
-				Score:          opp.Score,
-				FillProbability: opp.FillProbability,
-				Liquidity:      opp.Liquidity,
-			},
-		}
-
-		if err := publisher.PublishOpportunityDetected(ctx, oppEvent); err != nil {
-			log.Error("failed to publish opportunity",
-				zap.String("opportunity_id", opp.ID),
-				zap.Error(err),
+		if latencyMs > 100 {
+			log.Warn("detection latency exceeded 100ms",
+				zap.String("market_id", event.MarketID),
+				zap.Int64("latency_ms", latencyMs),
 			)
 		}
-	} else {
-		metrics.OpportunitiesFiltered.Inc()
+
+		scorerEngine.Score(ctx, opp, event.LiquidityDepth, event.MarketID)
+		metrics.ScoreDistribution.Observe(opp.Score.InexactFloat64())
+		metrics.FillProbabilityEstimate.Observe(opp.FillProbability.InexactFloat64())
+
+		emitted := thresholdFilter.Filter(opp)
+		if emitted {
+			publishOpportunity(ctx, publisher, opp, log)
+		} else {
+			metrics.OpportunitiesFiltered.Inc()
+		}
+
+		if err := oppLogger.Log(ctx, *opp); err != nil {
+			log.Error("failed to log opportunity", zap.String("opportunity_id", opp.ID), zap.Error(err))
+		}
 	}
 
-	if err := oppLogger.Log(ctx, *opp); err != nil {
-		log.Error("failed to log opportunity",
-			zap.String("opportunity_id", opp.ID),
-			zap.Error(err),
-		)
+	// Cross-market arb (new)
+	if crossDetector != nil {
+		crossOpps := crossDetector.Detect(ctx, event, priceCache.getAll())
+		for _, crossOpp := range crossOpps {
+			scorerEngine.Score(ctx, crossOpp, event.LiquidityDepth, crossOpp.MarketID)
+			metrics.CrossMarketDetected.Inc()
+			metrics.CrossMarketScore.Observe(crossOpp.Score.InexactFloat64())
+
+			emitted := thresholdFilter.Filter(crossOpp)
+			if emitted {
+				publishOpportunity(ctx, publisher, crossOpp, log)
+			} else {
+				metrics.OpportunitiesFiltered.Inc()
+			}
+
+			if err := oppLogger.Log(ctx, *crossOpp); err != nil {
+				log.Error("failed to log cross-market opportunity", zap.String("opportunity_id", crossOpp.ID), zap.Error(err))
+			}
+		}
 	}
+}
+
+func publishOpportunity(ctx context.Context, publisher *adapters.NATSPublisher, opp *ports.Opportunity, log *zap.Logger) {
+	metrics.OpportunitiesEmitted.Inc()
+
+	oppEvent := ports.OpportunityDetected{
+		EventID:   uuid.New().String(),
+		EventType: "OpportunityDetected",
+		Timestamp: time.Now().UTC(),
+		Source:    "arb-engine",
+		Payload: ports.OpportunityPayload{
+			OpportunityID:    opp.ID,
+			MarketID:         opp.MarketID,
+			YESPrice:         opp.YESPrice,
+			NOPrice:          opp.NOPrice,
+			Spread:           opp.Spread,
+			Score:            opp.Score,
+			FillProbability:  opp.FillProbability,
+			Liquidity:        opp.Liquidity,
+			RelatedMarketID:  opp.RelatedMarketID,
+			RelationshipType: opp.RelationshipType,
+			NearResolution:   opp.NearResolution,
+			ConfidenceFactor: opp.ConfidenceFactor,
+		},
+	}
+
+	if err := publisher.PublishOpportunityDetected(ctx, oppEvent); err != nil {
+		log.Error("failed to publish opportunity", zap.String("opportunity_id", opp.ID), zap.Error(err))
+	}
+}
+
+// priceCache stores latest prices for cross-market detection
+type priceCache struct {
+	mu      sync.RWMutex
+	prices  map[string]ports.MarketPriceUpdated
+}
+
+func (c *priceCache) set(marketID string, price ports.MarketPriceUpdated) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.prices[marketID] = price
+}
+
+func (c *priceCache) getAll() map[string]ports.MarketPriceUpdated {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	result := make(map[string]ports.MarketPriceUpdated, len(c.prices))
+	for k, v := range c.prices {
+		result[k] = v
+	}
+	return result
 }
 
 func startMetricsServer(bindAddr, port string, log *zap.Logger, natsPublisher *adapters.NATSPublisher, timescaleRepo *adapters.TimescaleRepo) *http.Server {
