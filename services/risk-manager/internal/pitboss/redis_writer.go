@@ -28,6 +28,7 @@ type StateBuilder struct {
 	winStreakCurrent       int
 	winStreakThreshold     int
 	metabolicAlert         bool
+	strategyWeights        map[string]decimal.Decimal // #2: per-strategy capital allocation weights
 	logger                 *zap.Logger
 }
 
@@ -120,6 +121,13 @@ func (sb *StateBuilder) SetMetabolicAlert(alert bool) {
 	sb.metabolicAlert = alert
 }
 
+// #2: SetStrategyWeights sets per-strategy capital allocation weights
+func (sb *StateBuilder) SetStrategyWeights(weights map[string]decimal.Decimal) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	sb.strategyWeights = weights
+}
+
 // #15: BuildState holds a single RLock for entire snapshot instead of per-field locks.
 // #4: Returns defensive copy of CorrelationExceeded map.
 func (sb *StateBuilder) BuildState() ports.PitBossState {
@@ -160,6 +168,12 @@ func (sb *StateBuilder) BuildState() ports.PitBossState {
 		corrCopy[k] = v
 	}
 
+	// #2: Defensive copy of strategy weights
+	weightsCopy := make(map[string]decimal.Decimal, len(sb.strategyWeights))
+	for k, v := range sb.strategyWeights {
+		weightsCopy[k] = v
+	}
+
 	var emergencyTimestamp *time.Time
 	if sb.emergencyStopTimestamp != nil {
 		ts := *sb.emergencyStopTimestamp
@@ -173,6 +187,7 @@ func (sb *StateBuilder) BuildState() ports.PitBossState {
 		Capital:                sb.capital,
 		MarketLimits:           marketLimits,
 		StrategyLimits:         strategyLimits,
+		StrategyWeights:        weightsCopy,
 		EmergencyStop:          sb.emergencyStop.Load(),
 		EmergencyStopReason:    sb.emergencyStopReason,
 		EmergencyStopTimestamp: emergencyTimestamp,

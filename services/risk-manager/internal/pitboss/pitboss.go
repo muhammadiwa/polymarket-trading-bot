@@ -210,6 +210,24 @@ func (pb *PitBoss) evaluate(req ports.RiskCheckRequest) ports.RiskDecision {
 		}
 	}
 
+	// #2: Check per-strategy capital allocation
+	if req.StrategyID != "" {
+		strategyWeight := pb.getStrategyWeight(req.StrategyID)
+		if strategyWeight.GreaterThan(decimal.Zero) {
+			maxAllocation := pb.capital.Mul(strategyWeight).Div(decimal.NewFromInt(100))
+			currentUsage := pb.strategyLimits.GetExposure(req.StrategyID)
+			if currentUsage.Add(req.TradeSize).GreaterThan(maxAllocation) {
+				base.Decision = "DENY"
+				base.Reason = "strategy_allocation_exceeded"
+				base.CurrentExposure = currentUsage
+				base.LimitValue = maxAllocation
+				base.Context["strategy_weight"] = strategyWeight.String()
+				base.Context["max_allocation"] = maxAllocation.String()
+				return base
+			}
+		}
+	}
+
 	if pb.marketLimits.WouldExceed(req.MarketID, req.TradeSize) {
 		base.Decision = "DENY"
 		base.Reason = "market_limit"
@@ -378,4 +396,15 @@ func (pb *PitBoss) SetMetabolicMonitor(mm *risk.MetabolicMonitor) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 	pb.metabolicMonitor = mm
+}
+
+// #2: Get strategy weight from state builder
+func (pb *PitBoss) getStrategyWeight(strategyID string) decimal.Decimal {
+	// Weight is stored in the strategies table and cached in Redis
+	// For now, read from state builder if available
+	state := pb.stateBuilder.BuildState()
+	if weight, ok := state.StrategyWeights[strategyID]; ok {
+		return weight
+	}
+	return decimal.Zero
 }

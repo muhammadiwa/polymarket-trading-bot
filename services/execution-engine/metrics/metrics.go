@@ -151,4 +151,15 @@ var (
 		Name: "pqap_execution_trade_record_errors_total",
 		Help: "Total failed trade record inserts",
 	})
+
+	// Strategy isolation metrics
+	StrategyIsolationFailures = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "pqap_strategy_isolation_failures_total",
+		Help: "Total strategy failures caught by panic recovery",
+	})
+
+	StrategyCapitalRejections = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "pqap_strategy_capital_rejections_total",
+		Help: "Total trades rejected due to per-strategy capital allocation",
+	})
 )
