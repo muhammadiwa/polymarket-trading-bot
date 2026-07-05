@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -22,11 +23,23 @@ def set_event_publisher(publisher: StrategyEventPublisher):
     event_publisher = publisher
 
 
+def _validate_uuid(value: str, field_name: str = "id") -> str:
+    """#6: Validate UUID format, raise 400 on invalid."""
+    try:
+        UUID(value)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name} format")
+    return value
+
+
 @router.post("", response_model=StrategyResponse, status_code=status.HTTP_201_CREATED)
 async def create_strategy(body: StrategyCreate, _user: dict = Depends(verify_jwt)):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        strategy = await strategy_repo.create_strategy(conn, body)
+        try:
+            strategy = await strategy_repo.create_strategy(conn, body)
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(status_code=409, detail="Strategy name already exists")
 
     if event_publisher:
         await event_publisher.publish_strategy_updated(
@@ -54,6 +67,7 @@ async def list_strategies(
 
 @router.get("/{strategy_id}", response_model=StrategyResponse)
 async def get_strategy(strategy_id: str, _user: dict = Depends(verify_jwt)):
+    _validate_uuid(strategy_id)
     pool = await get_pool()
     async with pool.acquire() as conn:
         strategy = await strategy_repo.get_strategy(conn, strategy_id)
@@ -65,6 +79,7 @@ async def get_strategy(strategy_id: str, _user: dict = Depends(verify_jwt)):
 
 @router.put("/{strategy_id}", response_model=StrategyResponse)
 async def update_strategy(strategy_id: str, body: StrategyUpdate, _user: dict = Depends(verify_jwt)):
+    _validate_uuid(strategy_id)
     pool = await get_pool()
     async with pool.acquire() as conn:
         strategy = await strategy_repo.update_strategy(conn, strategy_id, body)
@@ -83,9 +98,13 @@ async def update_strategy(strategy_id: str, body: StrategyUpdate, _user: dict = 
 
 @router.delete("/{strategy_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_strategy(strategy_id: str, _user: dict = Depends(verify_jwt)):
+    _validate_uuid(strategy_id)
     pool = await get_pool()
     async with pool.acquire() as conn:
-        deleted = await strategy_repo.delete_strategy(conn, strategy_id)
+        try:
+            deleted = await strategy_repo.delete_strategy(conn, strategy_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     if not deleted:
         raise HTTPException(status_code=404, detail="Strategy not found")
@@ -96,6 +115,7 @@ async def delete_strategy(strategy_id: str, _user: dict = Depends(verify_jwt)):
 
 @router.post("/{strategy_id}/activate", response_model=StrategyResponse)
 async def activate_strategy(strategy_id: str, _user: dict = Depends(verify_jwt)):
+    _validate_uuid(strategy_id)
     pool = await get_pool()
     async with pool.acquire() as conn:
         strategy = await strategy_repo.activate_strategy(conn, strategy_id)
@@ -113,6 +133,7 @@ async def activate_strategy(strategy_id: str, _user: dict = Depends(verify_jwt))
 
 @router.post("/{strategy_id}/deactivate", response_model=StrategyResponse)
 async def deactivate_strategy(strategy_id: str, _user: dict = Depends(verify_jwt)):
+    _validate_uuid(strategy_id)
     pool = await get_pool()
     async with pool.acquire() as conn:
         strategy = await strategy_repo.deactivate_strategy(conn, strategy_id)

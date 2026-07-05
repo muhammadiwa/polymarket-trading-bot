@@ -5,6 +5,12 @@ import asyncpg
 
 from app.models.strategy import StrategyCreate, StrategyResponse, StrategyUpdate
 
+# #1: Allowlist for dynamic update fields — defense-in-depth against injection
+ALLOWED_UPDATE_FIELDS = {
+    "name", "description", "min_profit_threshold", "score_threshold",
+    "max_position_size", "max_daily_trades", "risk_limit_pct", "capital_weight",
+}
+
 
 def _row_to_response(row: asyncpg.Record) -> StrategyResponse:
     return StrategyResponse(
@@ -87,6 +93,10 @@ async def update_strategy(
     idx = 1
 
     for field, value in data.model_dump(exclude_unset=True).items():
+        # #1: Only allow whitelisted fields
+        # #4: Explicitly exclude status, id, created_at, activated_at
+        if field not in ALLOWED_UPDATE_FIELDS:
+            continue
         if value is not None:
             fields.append(f"{field} = ${idx}")
             params.append(value)
@@ -110,31 +120,51 @@ async def update_strategy(
 
 
 async def delete_strategy(conn: asyncpg.Connection, strategy_id: str) -> bool:
-    result = await conn.execute("DELETE FROM strategies WHERE id = $1::uuid", strategy_id)
-    return result == "DELETE 1"
+    # #2: Prevent deleting active strategies — must deactivate first
+    row = await conn.fetchrow("SELECT status FROM strategies WHERE id = $1::uuid", strategy_id)
+    if row is None:
+        return False
+    if row["status"] == "active":
+        raise ValueError("Cannot delete an active strategy. Deactivate it first.")
+
+    # #15: Use RETURNING for definitive result
+    deleted = await conn.fetchrow("DELETE FROM strategies WHERE id = $1::uuid RETURNING id", strategy_id)
+    return deleted is not None
 
 
 async def activate_strategy(conn: asyncpg.Connection, strategy_id: str) -> Optional[StrategyResponse]:
+    # #3: Conditional guard — only activate if not already active
     row = await conn.fetchrow(
         """
         UPDATE strategies SET status = 'active', activated_at = NOW(), updated_at = NOW()
-        WHERE id = $1::uuid RETURNING *
+        WHERE id = $1::uuid AND status != 'active'
+        RETURNING *
         """,
         strategy_id,
     )
     if row is None:
-        return None
+        # Check if strategy exists but is already active
+        existing = await conn.fetchrow("SELECT id FROM strategies WHERE id = $1::uuid", strategy_id)
+        if existing is None:
+            return None
+        # Already active — return current state without event
+        return await get_strategy(conn, strategy_id)
     return _row_to_response(row)
 
 
 async def deactivate_strategy(conn: asyncpg.Connection, strategy_id: str) -> Optional[StrategyResponse]:
+    # #3: Conditional guard — only deactivate if not already inactive
     row = await conn.fetchrow(
         """
         UPDATE strategies SET status = 'inactive', updated_at = NOW()
-        WHERE id = $1::uuid RETURNING *
+        WHERE id = $1::uuid AND status != 'inactive'
+        RETURNING *
         """,
         strategy_id,
     )
     if row is None:
-        return None
+        existing = await conn.fetchrow("SELECT id FROM strategies WHERE id = $1::uuid", strategy_id)
+        if existing is None:
+            return None
+        return await get_strategy(conn, strategy_id)
     return _row_to_response(row)

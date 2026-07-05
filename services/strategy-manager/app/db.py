@@ -1,12 +1,18 @@
+import asyncio
+
 import asyncpg
 from app.config import config
 
 _pool: asyncpg.Pool = None
+_init_lock = asyncio.Lock()
 
 
 async def init_pool():
     global _pool
-    _pool = await asyncpg.create_pool(config.POSTGRES_URL, min_size=2, max_size=10)
+    async with _init_lock:
+        if _pool is not None:
+            return
+        _pool = await asyncpg.create_pool(config.POSTGRES_URL, min_size=2, max_size=10)
 
 
 async def get_pool() -> asyncpg.Pool:
@@ -16,5 +22,8 @@ async def get_pool() -> asyncpg.Pool:
 
 
 async def close_pool():
-    if _pool:
-        await _pool.close()
+    global _pool
+    async with _init_lock:
+        if _pool:
+            await _pool.close()
+            _pool = None

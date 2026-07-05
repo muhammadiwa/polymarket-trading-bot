@@ -23,7 +23,8 @@ CREATE TABLE strategies (
     activated_at TIMESTAMPTZ,
     
     CONSTRAINT valid_capital_weight CHECK (capital_weight >= 0 AND capital_weight <= 100),
-    CONSTRAINT valid_risk_limit CHECK (risk_limit_pct > 0 AND risk_limit_pct <= 100)
+    CONSTRAINT valid_risk_limit CHECK (risk_limit_pct > 0 AND risk_limit_pct <= 100),
+    CONSTRAINT unique_strategy_name UNIQUE (name)
 );
 
 CREATE INDEX idx_strategies_status ON strategies(status);
