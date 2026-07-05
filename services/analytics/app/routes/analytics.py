@@ -105,13 +105,15 @@ async def get_summary(
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        pnl = await analytics_repo.calculate_pnl(conn, start, end, "day", strategy_id, market_id)
-        perf = await analytics_repo.calculate_performance_metrics(conn, start, end, strategy_id, market_id)
-        risk = await analytics_repo.calculate_risk_metrics(conn, start, end, strategy_id, market_id)
+        # #4: Use single connection for consistency across all calculations
+        async with conn.transaction():
+            pnl = await analytics_repo.calculate_pnl(conn, start, end, "day", strategy_id, market_id)
+            perf = await analytics_repo.calculate_performance_metrics(conn, start, end, strategy_id, market_id)
+            risk = await analytics_repo.calculate_risk_metrics(conn, start, end, strategy_id, market_id)
 
     return AnalyticsSummary(
         pnl=PnLResponse(**pnl),
         performance=PerformanceMetrics(**perf),
         risk=RiskMetrics(**risk),
-        date_range={"start": start_date, "end": end_date},
+        date_range={"start": start.isoformat(), "end": end.isoformat()},
     )

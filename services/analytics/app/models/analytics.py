@@ -35,7 +35,7 @@ class PerformanceMetrics(BaseModel):
     win_rate: str
     average_win: str
     average_loss: str
-    profit_factor: str
+    profit_factor: Optional[str]  # None when no losing trades
     sharpe_ratio: str
     total_trades: int
     winning_trades: int

@@ -15,6 +15,14 @@ HUNDRED = Decimal("100")
 Z_SCORE_95 = Decimal("1.645")
 
 
+def _decimal_sqrt(d: Decimal) -> Decimal:
+    """#3: Compute square root using Decimal to avoid float precision loss."""
+    if d <= ZERO:
+        return ZERO
+    # Use Python's built-in Decimal sqrt (available in Python 3.9+)
+    return d.sqrt()
+
+
 async def get_trades_in_range(
     conn: asyncpg.Connection,
     start_date: datetime,
@@ -72,7 +80,8 @@ async def calculate_pnl(
         if group_by == "day":
             key = ft.strftime("%Y-%m-%d")
         elif group_by == "week":
-            key = ft.strftime("%Y-W%W")
+            # #8: Use ISO 8601 week format
+            key = ft.strftime("%G-W%V")
         else:  # month
             key = ft.strftime("%Y-%m")
         pnl = Decimal(str(t["pnl"]))
@@ -152,15 +161,18 @@ async def calculate_performance_metrics(
 
     gross_profit = sum(wins) if wins else ZERO
     gross_loss = abs(sum(losses)) if losses else ZERO
-    profit_factor = (gross_profit / gross_loss).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if gross_loss > ZERO else Decimal("999999")
+    # #5: Return None when profit factor is undefined (no losses)
+    profit_factor = (gross_profit / gross_loss).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if gross_loss > ZERO else None
 
-    # Sharpe ratio (annualized)
+    # Sharpe ratio (annualized) — uses sample variance (N-1)
     risk_free = Decimal(str(config.SHARPE_RISK_FREE_RATE))
     if len(pnls) > 1:
         mean_return = sum(pnls) / Decimal(len(pnls))
-        variance = sum((p - mean_return) ** 2 for p in pnls) / Decimal(len(pnls))
-        std_return = Decimal(str(math.sqrt(float(variance))))
-        sharpe = ((mean_return - risk_free) / std_return * Decimal(str(math.sqrt(365)))).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if std_return > ZERO else ZERO
+        # #2: Use sample variance (N-1) for Bessel's correction
+        variance = sum((p - mean_return) ** 2 for p in pnls) / Decimal(len(pnls) - 1)
+        # #3: Keep in Decimal — use Decimal sqrt
+        std_return = _decimal_sqrt(variance)
+        sharpe = ((mean_return - risk_free) / std_return * _decimal_sqrt(Decimal("365"))).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if std_return > ZERO else ZERO
     else:
         sharpe = ZERO
 
@@ -168,7 +180,7 @@ async def calculate_performance_metrics(
         "win_rate": str(win_rate),
         "average_win": str(avg_win),
         "average_loss": str(avg_loss),
-        "profit_factor": str(profit_factor),
+        "profit_factor": str(profit_factor) if profit_factor is not None else None,
         "sharpe_ratio": str(sharpe),
         "total_trades": len(pnls),
         "winning_trades": len(wins),
@@ -195,8 +207,10 @@ async def calculate_risk_metrics(
     pnls = [Decimal(str(t["pnl"])) for t in trades]
 
     # Max drawdown from peak equity
-    peak = ZERO
-    cumulative = ZERO
+    # #1: Use initial equity of 1.0 as baseline for all-losing portfolios
+    initial_equity = Decimal("1.0")
+    peak = initial_equity
+    cumulative = initial_equity
     max_dd = ZERO
     for pnl in pnls:
         cumulative += pnl
@@ -209,10 +223,11 @@ async def calculate_risk_metrics(
 
     current_drawdown = ((peak - cumulative) / peak).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if peak > ZERO else ZERO
 
-    # VaR 95% (parametric)
+    # VaR 95% (parametric) — uses sample variance (N-1)
     if len(pnls) > 1:
         mean_return = sum(pnls) / Decimal(len(pnls))
-        variance = sum((p - mean_return) ** 2 for p in pnls) / Decimal(len(pnls))
+        # #2: Use sample variance (N-1) for Sharpe and VaR
+        variance = sum((p - mean_return) ** 2 for p in pnls) / Decimal(len(pnls) - 1)
         std_return = Decimal(str(math.sqrt(float(variance))))
         var_95 = (mean_return - Z_SCORE_95 * std_return).quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
     else:
