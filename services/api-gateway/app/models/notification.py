@@ -14,8 +14,8 @@ class CategoryConfig(BaseModel):
 class ChannelConfig(BaseModel):
     telegram: bool = True
     email: bool = False
-    chat_id: str = ""
-    email_to: str = ""
+    chat_id: str = Field(default="", max_length=255)
+    email_to: str = Field(default="", max_length=255)
 
 
 class NotificationPreferencesResponse(BaseModel):
