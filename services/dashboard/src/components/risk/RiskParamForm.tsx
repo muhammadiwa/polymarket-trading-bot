@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { updateRiskParameters } from "@/lib/api";
 import type { RiskParameterUpdate } from "@/types";
 import Decimal from "decimal.js";
@@ -46,6 +46,17 @@ export function RiskParamForm({ currentValues, onSuccess }: RiskParamFormProps) 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  // #8: Sync values when currentValues prop changes
+  useEffect(() => {
+    if (currentValues) {
+      setValues({
+        dailyLossLimit: currentValues.dailyLossLimit ?? "",
+        maxPositionPerMarket: currentValues.maxPositionPerMarket ?? "",
+        maxPositionPerStrategy: currentValues.maxPositionPerStrategy ?? "",
+      });
+    }
+  }, [currentValues?.dailyLossLimit, currentValues?.maxPositionPerMarket, currentValues?.maxPositionPerStrategy]);
 
   const handleChange = useCallback((field: keyof RiskParameterUpdate, value: string) => {
     setValues((prev) => ({ ...prev, [field]: value }));

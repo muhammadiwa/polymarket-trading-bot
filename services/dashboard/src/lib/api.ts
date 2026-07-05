@@ -25,7 +25,11 @@ async function request<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const token = getToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -36,11 +40,17 @@ async function request<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
     if (!res.ok) {
       if (res.status === 401) {
         window.location.href = "/login";
-        throw new Error("Unauthorized");
+        return undefined as T;
       }
       throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
-    return res.json();
+    const text = await res.text();
+    if (!text) return undefined as T;
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new Error("Invalid JSON response from server");
+    }
   } finally {
     clearTimeout(timer);
   }

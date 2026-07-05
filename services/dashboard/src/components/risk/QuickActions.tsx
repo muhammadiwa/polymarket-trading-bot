@@ -15,9 +15,9 @@ export function QuickActions() {
   const { data: riskData, refresh } = useRiskStatus();
   const [showStopModal, setShowStopModal] = useState(false);
   const [showResumeModal, setShowResumeModal] = useState(false);
+  const [showPauseModal, setShowPauseModal] = useState(false);
   const [stopConfirmText, setStopConfirmText] = useState("");
   const [pauseReason, setPauseReason] = useState("");
-  const [showPauseInput, setShowPauseInput] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<ActionFeedback>(null);
 
@@ -39,6 +39,7 @@ export function QuickActions() {
       await refresh();
     } catch (err) {
       setFeedback({ type: "error", message: err instanceof Error ? err.message : "Failed to trigger emergency stop" });
+      // #12: Keep modal open on error so user can retry
     } finally {
       setActionLoading(null);
     }
@@ -74,14 +75,6 @@ export function QuickActions() {
       setActionLoading(null);
     }
   }, [refresh]);
-
-  const handleResumeClick = useCallback(() => {
-    if (riskData?.circuitBreakerStatus === "closed") {
-      setShowResumeModal(true);
-    } else {
-      handleResume();
-    }
-  }, [riskData, handleResume]);
 
   const isPaused = riskData?.isPaused ?? false;
 
@@ -121,57 +114,30 @@ export function QuickActions() {
           </button>
 
           <div className="space-y-2">
-            {showPauseInput ? (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Reason (optional)"
-                  value={pauseReason}
-                  onChange={(e) => setPauseReason(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00d4ff]/30"
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handlePause}
-                    disabled={actionLoading !== null}
-                    className="flex-1 px-3 py-2 rounded-lg bg-yellow-500 text-black font-medium text-sm hover:bg-yellow-500/80 transition-colors disabled:opacity-40"
-                  >
-                    {actionLoading === "pause" ? "Pausing..." : "Confirm Pause"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowPauseInput(false); setPauseReason(""); }}
-                    className="px-3 py-2 rounded-lg border border-white/10 text-gray-400 text-sm hover:text-white"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (isPaused) {
-                    handleResumeClick();
-                  } else {
-                    setShowPauseInput(true);
-                  }
-                }}
-                disabled={actionLoading !== null}
-                className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                  isPaused
-                    ? "bg-[#00ff88] text-black hover:bg-[#00ff88]/80"
-                    : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20"
-                }`}
-              >
-                {isPaused
-                  ? actionLoading === "resume"
-                    ? "Resuming..."
-                    : "Resume Trading"
-                  : "Pause Trading"}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (isPaused) {
+                  // #10: Always show confirmation for resume
+                  setShowResumeModal(true);
+                } else {
+                  // #9: Show confirmation modal for pause
+                  setShowPauseModal(true);
+                }
+              }}
+              disabled={actionLoading !== null}
+              className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                isPaused
+                  ? "bg-[#00ff88] text-black hover:bg-[#00ff88]/80"
+                  : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20"
+              }`}
+            >
+              {isPaused
+                ? actionLoading === "resume"
+                  ? "Resuming..."
+                  : "Resume Trading"
+                : "Pause Trading"}
+            </button>
           </div>
         </div>
 
@@ -209,6 +175,25 @@ export function QuickActions() {
         onConfirm={handleResume}
         onCancel={() => setShowResumeModal(false)}
       />
+
+      {/* #9: Pause confirmation modal */}
+      <ConfirmationModal
+        open={showPauseModal}
+        title="Pause Trading"
+        description="This will halt all trading activity. Are you sure?"
+        confirmLabel="Pause Trading"
+        variant="warning"
+        onConfirm={handlePause}
+        onCancel={() => { setShowPauseModal(false); setPauseReason(""); }}
+      >
+        <input
+          type="text"
+          placeholder="Reason (optional)"
+          value={pauseReason}
+          onChange={(e) => setPauseReason(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-500/5 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/30"
+        />
+      </ConfirmationModal>
     </section>
   );
 }
