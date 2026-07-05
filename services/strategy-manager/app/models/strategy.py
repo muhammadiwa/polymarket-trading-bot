@@ -13,7 +13,7 @@ class StrategyCreate(BaseModel):
     max_position_size: float = Field(default=1000.0, gt=0)
     max_daily_trades: int = Field(default=50, gt=0, le=10000)
     risk_limit_pct: float = Field(default=5.0, gt=0, le=100)
-    capital_weight: float = Field(default=100.0, ge=0, le=100)
+    capital_weight: float = Field(default=0.0, ge=0, le=100)  # #1: Default 0, not 100
     account_id: Optional[UUID] = None  # #9: Validate as UUID
 
 

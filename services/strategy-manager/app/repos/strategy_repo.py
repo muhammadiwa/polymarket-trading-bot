@@ -120,6 +120,7 @@ async def update_strategy(
         "risk_limit_pct": current.risk_limit_pct,
         "capital_weight": current.capital_weight,
         "status": current.status,
+        "account_id": current.account_id,  # #13: Include in snapshot
     }
     new_params = {**old_params, **data.model_dump(exclude_unset=True)}
     change_summary = version_repo.generate_change_summary(old_params, new_params)
@@ -188,4 +189,59 @@ async def deactivate_strategy(conn: asyncpg.Connection, strategy_id: str) -> Opt
         if existing is None:
             return None
         return await get_strategy(conn, strategy_id)
+    return _row_to_response(row)
+
+
+async def rollback_strategy(
+    conn: asyncpg.Connection, strategy_id: str, target_params: dict,
+    version_number: int, changed_by: Optional[str] = None,
+) -> Optional[StrategyResponse]:
+    """#2: Dedicated rollback — creates exactly 2 versions, no double-versioning."""
+    current = await get_strategy(conn, strategy_id)
+    if current is None:
+        return None
+
+    # Version 1: snapshot current state before rollback
+    current_params = {
+        "name": current.name, "description": current.description,
+        "min_profit_threshold": current.min_profit_threshold, "score_threshold": current.score_threshold,
+        "max_position_size": current.max_position_size, "max_daily_trades": current.max_daily_trades,
+        "risk_limit_pct": current.risk_limit_pct, "capital_weight": current.capital_weight,
+        "status": current.status,
+    }
+    await version_repo.create_version(
+        conn, strategy_id, current_params,
+        f"Before rollback to version {version_number}", changed_by,
+    )
+
+    # Apply target parameters (preserve status)
+    # #9: Create new dict instead of mutating
+    apply_params = {k: v for k, v in target_params.items() if k != "status"}
+    apply_params["status"] = current.status
+
+    fields = []
+    params = []
+    idx = 1
+    for field in ALLOWED_UPDATE_FIELDS:
+        if field in apply_params and apply_params[field] is not None:
+            fields.append(f"{field} = ${idx}")
+            params.append(apply_params[field])
+            idx += 1
+
+    fields.append(f"updated_at = ${idx}")
+    params.append(datetime.now(timezone.utc))
+    idx += 1
+    params.append(strategy_id)
+
+    row = await conn.fetchrow(
+        f"UPDATE strategies SET {', '.join(fields)} WHERE id = ${idx}::uuid RETURNING *",
+        *params,
+    )
+
+    # Version 2: record the rollback
+    await version_repo.create_version(
+        conn, strategy_id, apply_params,
+        f"Rollback to version {version_number}", changed_by,
+    )
+
     return _row_to_response(row)

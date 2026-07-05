@@ -16,28 +16,47 @@ async def create_version(
     changed_by: Optional[str] = None,
 ) -> dict:
     """Create a new version for a strategy. Returns the version record."""
-    # Get next version number
-    row = await conn.fetchrow(
-        "SELECT COALESCE(MAX(version_number), 0) + 1 as next FROM strategy_versions WHERE strategy_id = $1::uuid",
-        strategy_id,
-    )
-    version_number = row["next"]
-
-    version_row = await conn.fetchrow(
-        """
-        INSERT INTO strategy_versions (strategy_id, version_number, parameters, change_summary, changed_by)
-        VALUES ($1::uuid, $2, $3::jsonb, $4, $5::uuid)
-        RETURNING id, strategy_id, version_number, parameters, change_summary, changed_by, created_at
-        """,
-        strategy_id, version_number, json.dumps(parameters), change_summary, changed_by,
-    )
+    # #3: Atomic version number generation — single INSERT with subquery
+    try:
+        version_row = await conn.fetchrow(
+            """
+            INSERT INTO strategy_versions (strategy_id, version_number, parameters, change_summary, changed_by)
+            VALUES (
+                $1::uuid,
+                (SELECT COALESCE(MAX(version_number), 0) + 1 FROM strategy_versions WHERE strategy_id = $1::uuid),
+                $2::jsonb, $3, $4::uuid
+            )
+            RETURNING id, strategy_id, version_number, parameters, change_summary, changed_by, created_at
+            """,
+            strategy_id, json.dumps(parameters), change_summary, changed_by,
+        )
+    except asyncpg.UniqueViolationError:
+        # Retry once on collision
+        version_row = await conn.fetchrow(
+            """
+            INSERT INTO strategy_versions (strategy_id, version_number, parameters, change_summary, changed_by)
+            VALUES (
+                $1::uuid,
+                (SELECT COALESCE(MAX(version_number), 0) + 1 FROM strategy_versions WHERE strategy_id = $1::uuid),
+                $2::jsonb, $3, $4::uuid
+            )
+            RETURNING id, strategy_id, version_number, parameters, change_summary, changed_by, created_at
+            """,
+            strategy_id, json.dumps(parameters), change_summary, changed_by,
+        )
     return _version_to_dict(version_row)
 
 
 async def get_versions(
     conn: asyncpg.Connection, strategy_id: str, limit: int = 50, offset: int = 0
-) -> list[dict]:
-    """List all versions for a strategy, newest first."""
+) -> tuple[list[dict], int]:
+    """List all versions for a strategy, newest first. Returns (items, total)."""
+    count_row = await conn.fetchrow(
+        "SELECT COUNT(*) as total FROM strategy_versions WHERE strategy_id = $1::uuid",
+        strategy_id,
+    )
+    total = count_row["total"]
+
     rows = await conn.fetch(
         """
         SELECT id, strategy_id, version_number, parameters, change_summary, changed_by, created_at
@@ -48,7 +67,7 @@ async def get_versions(
         """,
         strategy_id, limit, offset,
     )
-    return [_version_to_dict(r) for r in rows]
+    return [_version_to_dict(r) for r in rows], total
 
 
 async def get_version(

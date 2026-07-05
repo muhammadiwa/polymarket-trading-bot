@@ -171,7 +171,8 @@ async def list_versions(
             raise HTTPException(status_code=404, detail="Strategy not found")
         items = await version_repo.get_versions(conn, strategy_id, limit, offset)
 
-    return VersionListResponse(items=items, total=len(items))
+    items_list, total = items
+    return VersionListResponse(items=items_list, total=total)
 
 
 @router.get("/{strategy_id}/versions/{version_id}", response_model=VersionResponse)
@@ -198,47 +199,14 @@ async def rollback_strategy(strategy_id: str, version_id: str, user: dict = Depe
         if version is None:
             raise HTTPException(status_code=404, detail="Version not found")
 
-        # Get current strategy
-        current = await strategy_repo.get_strategy(conn, strategy_id)
-        if current is None:
-            raise HTTPException(status_code=404, detail="Strategy not found")
-
-        # Create version of current state (audit trail)
-        current_params = {
-            "name": current.name, "description": current.description,
-            "min_profit_threshold": current.min_profit_threshold, "score_threshold": current.score_threshold,
-            "max_position_size": current.max_position_size, "max_daily_trades": current.max_daily_trades,
-            "risk_limit_pct": current.risk_limit_pct, "capital_weight": current.capital_weight,
-            "status": current.status,
-        }
-        await version_repo.create_version(
-            conn, strategy_id, current_params,
-            f"Before rollback to version {version['version_number']}",
-            user.get("user_id"),
+        # #2: Use dedicated rollback function (creates exactly 2 versions)
+        strategy = await strategy_repo.rollback_strategy(
+            conn, strategy_id, version["parameters"],
+            version["version_number"], user.get("user_id"),
         )
 
-        # Apply version parameters (preserve status)
-        target_params = version["parameters"]
-        target_params["status"] = current.status  # Don't change status
-
-        update_data = StrategyUpdate(
-            name=target_params.get("name"),
-            description=target_params.get("description", ""),
-            min_profit_threshold=target_params.get("min_profit_threshold"),
-            score_threshold=target_params.get("score_threshold"),
-            max_position_size=target_params.get("max_position_size"),
-            max_daily_trades=target_params.get("max_daily_trades"),
-            risk_limit_pct=target_params.get("risk_limit_pct"),
-            capital_weight=target_params.get("capital_weight"),
-        )
-        strategy = await strategy_repo.update_strategy(conn, strategy_id, update_data, user.get("user_id"))
-
-        # Create rollback version
-        await version_repo.create_version(
-            conn, strategy_id, target_params,
-            f"Rollback to version {version['version_number']}",
-            user.get("user_id"),
-        )
+    if strategy is None:
+        raise HTTPException(status_code=404, detail="Strategy not found")
 
     if event_publisher:
         await event_publisher.publish_strategy_updated(
@@ -257,26 +225,31 @@ async def update_weights(body: WeightUpdateRequest, user: dict = Depends(verify_
     if not body.weights:
         raise HTTPException(status_code=400, detail="Weights dict cannot be empty")
 
-    # Validate sum == 100% ±0.01%
+    # #7: Validate each weight is 0-100
+    for sid, w in body.weights.items():
+        if w < 0 or w > 100:
+            raise HTTPException(status_code=400, detail=f"Weight for {sid} must be 0-100")
+
+    # #8: Validate sum == 100% ±0.05% (float tolerance)
     total = sum(body.weights.values())
-    if abs(total - 100.0) > 0.01:
+    if abs(total - 100.0) > 0.05:
         raise HTTPException(
             status_code=400,
-            detail=f"Weights must sum to 100% (±0.01%). Current sum: {total:.4f}%",
+            detail=f"Weights must sum to 100% (±0.05%). Current sum: {total:.4f}%",
         )
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        for strategy_id, weight in body.weights.items():
-            _validate_uuid(strategy_id)
-            # Verify strategy exists
-            strategy = await strategy_repo.get_strategy(conn, strategy_id)
-            if strategy is None:
-                raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+        # #4: Wrap in transaction for atomicity
+        async with conn.transaction():
+            for strategy_id, weight in body.weights.items():
+                _validate_uuid(strategy_id)
+                strategy = await strategy_repo.get_strategy(conn, strategy_id)
+                if strategy is None:
+                    raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
 
-            # Update weight
-            update_data = StrategyUpdate(capital_weight=weight)
-            await strategy_repo.update_strategy(conn, strategy_id, update_data, user.get("user_id"))
+                update_data = StrategyUpdate(capital_weight=weight)
+                await strategy_repo.update_strategy(conn, strategy_id, update_data, user.get("user_id"))
 
     if event_publisher:
         await event_publisher.publish_strategy_weights_updated(body.weights)
