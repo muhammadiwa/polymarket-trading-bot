@@ -142,9 +142,9 @@ func (r *Reconstructor) restoreBatasiState(ctx context.Context) {
 	}
 
 	if streak > 0 {
-		r.batasiMonitor.SetState(risk.BatasiWinState{
-			CurrentStreak: streak,
-		})
+		current := r.batasiMonitor.GetState()
+		current.CurrentStreak = streak
+		r.batasiMonitor.SetState(current)
 		r.logger.Info("batasi win streak restored from trades", zap.Int("streak", streak))
 	}
 }

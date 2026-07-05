@@ -10,7 +10,7 @@ import (
 
 func newTestCorrelationEngine() *risk.CorrelationEngine {
 	logger, _ := zap.NewDevelopment()
-	return risk.NewCorrelationEngine(0.7, 1*time.Hour, 3, logger)
+	return risk.NewCorrelationEngine(0.7, 1*time.Hour, 3, nil, nil, logger)
 }
 
 func TestCorrelationEngine_CategoryDetection(t *testing.T) {

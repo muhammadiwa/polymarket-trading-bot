@@ -4,11 +4,13 @@ package risk
 
 import (
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 )
 
 type cpuSampler struct {
+	mu             sync.Mutex
 	prevUserTime   int64
 	prevSystemTime int64
 	prevWall       time.Time
@@ -27,6 +29,9 @@ func timevalToSeconds(tv syscall.Timeval) int64 {
 }
 
 func (cs *cpuSampler) sample() float64 {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
 	var ru syscall.Rusage
 	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &ru); err != nil {
 		return 0

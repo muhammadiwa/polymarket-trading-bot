@@ -9,10 +9,10 @@ import (
 
 func newTestCorrelationTracker() *risk.CorrelationTracker {
 	logger, _ := zap.NewDevelopment()
-	engine := risk.NewCorrelationEngine(0.7, 1000000000, 3, logger)
+	engine := risk.NewCorrelationEngine(0.7, 1000000000, 3, nil, nil, logger)
 	engine.SetCategoryGroup("election", []string{"market_1", "market_2", "market_3", "market_4"})
 	engine.UpdateGroups()
-	return risk.NewCorrelationTracker(engine, 3, logger)
+	return risk.NewCorrelationTracker(engine, 3, nil, logger)
 }
 
 func TestCorrelationTracker_AllowWhenUnderLimit(t *testing.T) {
