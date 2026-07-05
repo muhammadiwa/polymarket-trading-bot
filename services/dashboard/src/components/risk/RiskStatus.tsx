@@ -68,14 +68,15 @@ function BudgetBar({ used, total }: { used: string; total: string }) {
 }
 
 function CircuitBreakerBadge({ status, trippedAt }: { status: "open" | "closed"; trippedAt: string | null }) {
-  const isOpen = status === "open";
+  // "open" = tripped (danger), "closed" = normal (safe)
+  const isTripped = status === "open";
   return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${isOpen ? "bg-[#00ff88]/10" : "bg-[#ff4757]/10"}`}>
-      <span className={`h-2 w-2 rounded-full ${isOpen ? "bg-[#00ff88]" : "bg-[#ff4757] animate-pulse"}`} />
-      <span className={`text-sm font-medium ${isOpen ? "text-[#00ff88]" : "text-[#ff4757]"}`}>
-        {isOpen ? "Open" : "Closed"}
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${isTripped ? "bg-[#ff4757]/10" : "bg-[#00ff88]/10"}`}>
+      <span className={`h-2 w-2 rounded-full ${isTripped ? "bg-[#ff4757] animate-pulse" : "bg-[#00ff88]"}`} />
+      <span className={`text-sm font-medium ${isTripped ? "text-[#ff4757]" : "text-[#00ff88]"}`}>
+        {isTripped ? "Tripped" : "Normal"}
       </span>
-      {!isOpen && trippedAt && (
+      {isTripped && trippedAt && (
         <span className="text-xs text-gray-400">
           Tripped at {new Date(trippedAt).toLocaleTimeString()}
         </span>
@@ -103,12 +104,18 @@ export function RiskStatus() {
   if (error) {
     return (
       <div className="rounded-xl border border-[#ff4757]/30 bg-[#ff4757]/10 backdrop-blur-md p-5 text-[#ff4757]" role="alert">
-        Failed to load risk status: {error}
+        Failed to load risk status. Please try again.
       </div>
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-md p-5 text-gray-400">
+        No risk data available
+      </div>
+    );
+  }
 
   const drawdownPct = (() => {
     try {

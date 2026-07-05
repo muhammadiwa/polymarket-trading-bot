@@ -40,11 +40,10 @@ async function request<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
     if (!res.ok) {
       if (res.status === 401) {
         window.location.href = "/login";
-        return undefined as T; // #8: return instead of throw during redirect
+        return undefined as T;
       }
       throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
-    // #14: Guard against non-JSON responses
     const text = await res.text();
     if (!text) return undefined as T;
     try {

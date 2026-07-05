@@ -20,14 +20,17 @@ export function useRiskStatus(): UseRiskStatusResult {
   const [error, setError] = useState<string | null>(null);
   const wsDataReceived = useRef(false);
 
+  // WS effect — always apply (not just first message)
   useEffect(() => {
-    if (riskData && !wsDataReceived.current) {
+    if (riskData) {
       wsDataReceived.current = true;
       setData(riskData);
       setLoading(false);
+      setError(null);
     }
   }, [riskData]);
 
+  // REST fallback — only if WS hasn't sent data yet
   useEffect(() => {
     let cancelled = false;
 
@@ -39,7 +42,7 @@ export function useRiskStatus(): UseRiskStatusResult {
         }
       })
       .catch((err) => {
-        if (!cancelled) {
+        if (!cancelled && !wsDataReceived.current) {
           setError(err instanceof Error ? err.message : "Failed to load risk status");
           setLoading(false);
         }
@@ -50,13 +53,20 @@ export function useRiskStatus(): UseRiskStatusResult {
     };
   }, []);
 
+  // #7: refresh with generation counter to prevent stale overwrites
+  const refreshGen = useRef(0);
   const refresh = async () => {
+    const gen = ++refreshGen.current;
     try {
       const status = await fetchRiskStatus();
-      setData(status);
-      setError(null);
+      if (gen === refreshGen.current) {
+        setData(status);
+        setError(null);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to refresh risk status");
+      if (gen === refreshGen.current) {
+        setError(err instanceof Error ? err.message : "Failed to refresh risk status");
+      }
     }
   };
 
