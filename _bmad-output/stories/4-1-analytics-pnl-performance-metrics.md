@@ -216,8 +216,25 @@ pqap_analytics_calculations_total     # Counter — calculations performed
 
 ### Agent Model Used
 
-### Debug Log References
+mimo-v2.5-pro
 
 ### Completion Notes List
 
+- Task 1: Analytics service setup (config, db, auth, main)
+- Task 2: PnL aggregation by day/week/month, strategy, market
+- Task 3: Performance metrics (win rate, avg win/loss, profit factor, Sharpe)
+- Task 4: Risk metrics (max drawdown, current drawdown, VaR 95%)
+- Task 5: API endpoints (pnl, metrics, risk, summary)
+
 ### File List
+
+**New files:**
+- `services/analytics/app/main.py`
+- `services/analytics/app/config.py`
+- `services/analytics/app/db.py`
+- `services/analytics/app/middleware/auth.py`
+- `services/analytics/app/models/analytics.py`
+- `services/analytics/app/repos/analytics_repo.py`
+- `services/analytics/app/routes/analytics.py`
+- `services/analytics/requirements.txt`
+- `services/analytics/Dockerfile`
