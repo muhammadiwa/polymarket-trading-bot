@@ -17,6 +17,9 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         if os.getenv("AUTH_CSRF_ENABLED", "true").lower() != "true":
+            # #12: Log warning when CSRF is disabled
+            if os.getenv("ENVIRONMENT", "development") == "production":
+                logger.critical("CSRF protection is DISABLED in production environment!")
             return await call_next(request)
 
         if request.method.upper() in SAFE_METHODS:
