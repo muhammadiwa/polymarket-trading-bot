@@ -117,8 +117,18 @@ type OpportunityPayload struct {
 
 ### Agent Model Used
 
-### Debug Log References
+mimo-v2.5-pro
 
 ### Completion Notes List
 
+- Task 1: Cascade risk flagging — DetectCascadeRisk method + fields on Opportunity/OpportunityPayload
+- Task 2: All opportunities logged with filter_reason (below_score_threshold)
+- Task 3: CascadeRiskDetected Prometheus metric added
+
 ### File List
+
+**Modified files:**
+- `services/arb-engine/internal/ports/event.go` — added CascadeRisk, CorrelatedMarketIDs fields
+- `services/arb-engine/internal/detector/cross_market.go` — added DetectCascadeRisk method
+- `services/arb-engine/cmd/main.go` — cascade risk detection, filter_reason logging
+- `services/arb-engine/metrics/metrics.go` — added CascadeRiskDetected metric

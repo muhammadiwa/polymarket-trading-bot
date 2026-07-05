@@ -70,4 +70,10 @@ var (
 		Name: "pqap_arb_relationship_count",
 		Help: "Active market relationships count",
 	})
+
+	// Story 3.6: Cascade risk detection
+	CascadeRiskDetected = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "pqap_arb_cascade_risk_detected_total",
+		Help: "Total cascade risk detections (2+ correlated markets with concurrent opportunities",
+	})
 )

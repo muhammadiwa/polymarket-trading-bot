@@ -235,8 +235,10 @@ func processMarketEvent(
 			publishOpportunity(ctx, publisher, opp, log)
 		} else {
 			metrics.OpportunitiesFiltered.Inc()
+			opp.FilterReason = "below_score_threshold" // #2: Set filter reason
 		}
 
+		// #2: Log ALL opportunities (including filtered)
 		if err := oppLogger.Log(ctx, *opp); err != nil {
 			log.Error("failed to log opportunity", zap.String("opportunity_id", opp.ID), zap.Error(err))
 		}
@@ -244,8 +246,15 @@ func processMarketEvent(
 
 	// Cross-market arb (new)
 	if crossDetector != nil {
+		// #1: Detect cascade risk
+		cascadeRisk, correlatedIDs := crossDetector.DetectCascadeRisk(ctx, event, priceCache.getAll())
+
 		crossOpps := crossDetector.Detect(ctx, event, priceCache.getAll())
 		for _, crossOpp := range crossOpps {
+			// Set cascade risk on opportunity
+			crossOpp.CascadeRisk = cascadeRisk
+			crossOpp.CorrelatedMarketIDs = correlatedIDs
+
 			// #15: Use related market's liquidity if available
 			liquidityDepth := event.LiquidityDepth
 			if relatedPrice, ok := priceCache.get(crossOpp.RelatedMarketID); ok {
@@ -255,13 +264,19 @@ func processMarketEvent(
 			metrics.CrossMarketDetected.Inc()
 			metrics.CrossMarketScore.Observe(crossOpp.Score.InexactFloat64())
 
+			if cascadeRisk {
+				metrics.CascadeRiskDetected.Inc()
+			}
+
 			emitted := thresholdFilter.Filter(crossOpp)
 			if emitted {
 				publishOpportunity(ctx, publisher, crossOpp, log)
 			} else {
 				metrics.OpportunitiesFiltered.Inc()
+				crossOpp.FilterReason = "below_score_threshold" // #2: Set filter reason
 			}
 
+			// #2: Log ALL opportunities (including filtered)
 			if err := oppLogger.Log(ctx, *crossOpp); err != nil {
 				log.Error("failed to log cross-market opportunity", zap.String("opportunity_id", crossOpp.ID), zap.Error(err))
 			}
@@ -290,6 +305,8 @@ func publishOpportunity(ctx context.Context, publisher *adapters.NATSPublisher, 
 			RelationshipType: opp.RelationshipType,
 			NearResolution:   opp.NearResolution,
 			ConfidenceFactor: opp.ConfidenceFactor,
+			CascadeRisk:      opp.CascadeRisk,
+			CorrelatedMarketIDs: opp.CorrelatedMarketIDs,
 		},
 	}
 

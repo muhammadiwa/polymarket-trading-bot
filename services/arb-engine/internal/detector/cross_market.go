@@ -164,3 +164,45 @@ func (d *CrossMarketDetector) evaluatePair(eventA, eventB ports.MarketPriceUpdat
 
 	return opp
 }
+
+// DetectCascadeRisk checks if multiple correlated markets have concurrent opportunities.
+// Returns true if 2+ correlated markets also have spreads above threshold.
+func (d *CrossMarketDetector) DetectCascadeRisk(
+	ctx context.Context,
+	event ports.MarketPriceUpdated,
+	prices map[string]ports.MarketPriceUpdated,
+) (bool, []string) {
+	related, err := d.registry.GetRelatedMarkets(ctx, event.MarketID)
+	if err != nil || len(related) == 0 {
+		return false, nil
+	}
+
+	one := decimal.RequireFromString("1.00")
+	var correlatedIDs []string
+
+	for _, rel := range related {
+		relatedPrice, ok := prices[rel.MarketBID]
+		if !ok {
+			continue
+		}
+
+		// Check if this related market also has a spread above threshold
+		var spread decimal.Decimal
+		switch rel.RelationshipType {
+		case "same_event":
+			spread = one.Sub(relatedPrice.YESPrice).Sub(relatedPrice.NOPrice)
+		case "date_variant":
+			spread = event.YESPrice.Sub(relatedPrice.YESPrice)
+		case "correlated_outcome":
+			diff := event.YESPrice.Sub(relatedPrice.YESPrice).Abs()
+			spread = diff.Mul(decimal.NewFromFloat(rel.Confidence))
+		}
+
+		if spread.GreaterThan(d.minProfitThreshold) {
+			correlatedIDs = append(correlatedIDs, rel.MarketBID)
+		}
+	}
+
+	cascadeRisk := len(correlatedIDs) >= 2
+	return cascadeRisk, correlatedIDs
+}
