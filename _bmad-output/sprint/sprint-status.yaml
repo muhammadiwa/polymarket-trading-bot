@@ -1,5 +1,5 @@
 # generated: 2026-07-03
-# last_updated: 2026-07-03T12:00:00Z
+# last_updated: 2026-07-05T12:00:00Z
 # project: Polymarket Quant Arbitrage Platform (PQAP)
 # project_key: PQAP
 # tracking_system: file-system
@@ -58,8 +58,8 @@ development_status:
   # Epic 3: Advanced Hunting Strategies
   epic-3: in-progress
   3-1-cross-market-arbitrage-detection: review
-  3-2-strategy-manager-crud-activation: backlog
-  3-3-strategy-manager-versioning-capital-allocation-weights: backlog
+  3-2-strategy-manager-crud-activation: review
+  3-3-strategy-manager-versioning-capital-allocation-weights: review
   3-4-multi-strategy-isolation-capital-allocation: backlog
   3-5-portfolio-strategy-allocation-tier-adjustment-utilization: backlog
   3-6-advanced-arb-correlation-detection-opportunity-logging: backlog
