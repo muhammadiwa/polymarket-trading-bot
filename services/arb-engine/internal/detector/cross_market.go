@@ -60,12 +60,23 @@ func (d *CrossMarketDetector) Detect(ctx context.Context, event ports.MarketPric
 	}
 
 	var opportunities []*ports.Opportunity
+	seen := make(map[string]bool) // #7: Deduplicate bidirectional relationships
 
 	for _, rel := range related {
 		relatedPrice, ok := prices[rel.MarketBID]
 		if !ok {
 			continue
 		}
+
+		// #7: Skip if we already processed this market pair
+		pairKey := rel.MarketAID + ":" + rel.MarketBID
+		if pairKey > rel.MarketBID+":"+rel.MarketAID {
+			pairKey = rel.MarketBID + ":" + rel.MarketAID
+		}
+		if seen[pairKey] {
+			continue
+		}
+		seen[pairKey] = true
 
 		opp := d.evaluatePair(event, relatedPrice, rel)
 		if opp != nil {
@@ -122,7 +133,16 @@ func (d *CrossMarketDetector) evaluatePair(eventA, eventB ports.MarketPriceUpdat
 		return nil
 	}
 
-	// #2: Return opportunity with filter_reason instead of nil for below-threshold
+	// #5: Compute near-resolution before threshold check
+	nearResA, factorA := d.nearResolution.Check(eventA.MarketID)
+	nearResB, factorB := d.nearResolution.Check(eventB.MarketID)
+	confidenceFactor := factorA
+	if factorB < confidenceFactor {
+		confidenceFactor = factorB
+	}
+	nearRes := nearResA || nearResB
+
+	// Return opportunity with filter_reason instead of nil for below-threshold
 	if spread.LessThanOrEqual(d.minProfitThreshold) {
 		return &ports.Opportunity{
 			ID:               uuid.New().String(),
@@ -135,18 +155,10 @@ func (d *CrossMarketDetector) evaluatePair(eventA, eventB ports.MarketPriceUpdat
 			DetectedAt:       time.Now().UTC(),
 			RelatedMarketID:  marketBID,
 			RelationshipType: rel.RelationshipType,
+			NearResolution:   nearRes,
+			ConfidenceFactor: confidenceFactor,
 		}
 	}
-
-	// Check near-resolution for both markets
-	nearResA, factorA := d.nearResolution.Check(eventA.MarketID)
-	nearResB, factorB := d.nearResolution.Check(eventB.MarketID)
-	confidenceFactor := factorA
-	if factorB < confidenceFactor {
-		confidenceFactor = factorB
-	}
-
-	nearRes := nearResA || nearResB
 
 	opp := &ports.Opportunity{
 		ID:               uuid.New().String(),
@@ -194,7 +206,8 @@ func (d *CrossMarketDetector) DetectCascadeRisk(
 		var spread decimal.Decimal
 		switch rel.RelationshipType {
 		case "same_event":
-			spread = one.Sub(relatedPrice.YESPrice).Sub(relatedPrice.NOPrice)
+			// #6: Align with evaluatePair — cross-market spread
+			spread = one.Sub(event.YESPrice).Sub(relatedPrice.NOPrice)
 		case "date_variant":
 			// #3: Align with evaluatePair — related market price - event price
 			spread = relatedPrice.YESPrice.Sub(event.YESPrice)

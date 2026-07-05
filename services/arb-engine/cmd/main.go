@@ -246,10 +246,22 @@ func processMarketEvent(
 
 	// Cross-market arb (new)
 	if crossDetector != nil {
-		// #1: Detect cascade risk
-		cascadeRisk, correlatedIDs := crossDetector.DetectCascadeRisk(ctx, event, priceCache.getAll())
+		// #1: Single getAll() call for consistent snapshot
+		prices := priceCache.getAll()
 
-		crossOpps := crossDetector.Detect(ctx, event, priceCache.getAll())
+		// #1: Detect cascade risk with same snapshot
+		cascadeRisk, correlatedIDs := crossDetector.DetectCascadeRisk(ctx, event, prices)
+
+		// #2: Log cascade risk even if no opportunities emitted
+		if cascadeRisk {
+			metrics.CascadeRiskDetected.Inc()
+			log.Warn("cascade risk detected",
+				zap.String("market_id", event.MarketID),
+				zap.Strings("correlated_markets", correlatedIDs),
+			)
+		}
+
+		crossOpps := crossDetector.Detect(ctx, event, prices)
 		for _, crossOpp := range crossOpps {
 			// Set cascade risk on opportunity
 			crossOpp.CascadeRisk = cascadeRisk
@@ -273,7 +285,10 @@ func processMarketEvent(
 				publishOpportunity(ctx, publisher, crossOpp, log)
 			} else {
 				metrics.OpportunitiesFiltered.Inc()
-				crossOpp.FilterReason = "below_score_threshold" // #2: Set filter reason
+				// #3: Only set filter reason if not already set
+				if crossOpp.FilterReason == "" {
+					crossOpp.FilterReason = "below_score_threshold"
+				}
 			}
 
 			// #2: Log ALL opportunities (including filtered)
@@ -326,6 +341,15 @@ func (c *priceCache) set(marketID string, price ports.MarketPriceUpdated) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.prices[marketID] = price
+	// #4: Periodic eviction of stale entries
+	if len(c.prices) > 1000 {
+		now := time.Now()
+		for k, v := range c.prices {
+			if now.Sub(v.Timestamp) > c.maxAge {
+				delete(c.prices, k)
+			}
+		}
+	}
 }
 
 func (c *priceCache) get(marketID string) (ports.MarketPriceUpdated, bool) {
