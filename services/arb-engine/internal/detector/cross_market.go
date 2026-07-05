@@ -196,8 +196,16 @@ func (d *CrossMarketDetector) DetectCascadeRisk(
 
 	one := decimal.RequireFromString("1.00")
 	var correlatedIDs []string
+	seen := make(map[string]bool) // #2: Deduplicate bidirectional relationships
 
 	for _, rel := range related {
+		// #2: Skip duplicate pairs
+		pairKey := rel.MarketAID + ":" + rel.MarketBID
+		if seen[pairKey] {
+			continue
+		}
+		seen[pairKey] = true
+
 		relatedPrice, ok := prices[rel.MarketBID]
 		if !ok {
 			continue
@@ -206,14 +214,15 @@ func (d *CrossMarketDetector) DetectCascadeRisk(
 		var spread decimal.Decimal
 		switch rel.RelationshipType {
 		case "same_event":
-			// #6: Align with evaluatePair — cross-market spread
 			spread = one.Sub(event.YESPrice).Sub(relatedPrice.NOPrice)
 		case "date_variant":
-			// #3: Align with evaluatePair — related market price - event price
 			spread = relatedPrice.YESPrice.Sub(event.YESPrice)
+			// #4: Guard against negative spread (consistent with evaluatePair)
+			if spread.IsNegative() {
+				continue
+			}
 		case "correlated_outcome":
 			diff := event.YESPrice.Sub(relatedPrice.YESPrice).Abs()
-			// #4: Clamp confidence to [0, 1]
 			confidence := rel.Confidence
 			if confidence < 0 {
 				confidence = 0

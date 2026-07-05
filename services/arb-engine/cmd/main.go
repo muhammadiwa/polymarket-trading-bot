@@ -204,7 +204,7 @@ func processMarketEvent(
 		return
 	}
 
-	// #3: Cache price AFTER stale check — stale prices don't enter cache
+	// #3: Cache price AFTER stale check and validation
 	priceCache.set(event.MarketID, event)
 
 	// #9: Validate prices are positive
