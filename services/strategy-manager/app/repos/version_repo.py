@@ -36,7 +36,6 @@ async def create_version(
             if attempt == 2:
                 raise
             logger.warning("version number collision, retrying", extra={"strategy_id": strategy_id, "attempt": attempt + 1})
-    # Should not reach here
     raise RuntimeError("Failed to create version after 3 attempts")
 
 
