@@ -63,7 +63,7 @@ development_status:
   3-4-multi-strategy-isolation-capital-allocation: review
   3-5-portfolio-strategy-allocation-tier-adjustment-utilization: review
   3-6-advanced-arb-correlation-detection-opportunity-logging: review
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   # Epic 4: Intelligence & Analytics
   epic-4: backlog
