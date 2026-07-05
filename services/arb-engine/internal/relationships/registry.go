@@ -72,8 +72,11 @@ func (r *Registry) GetRelatedMarkets(ctx context.Context, marketID string) ([]po
 }
 
 // StartRefreshLoop starts a background goroutine that refreshes the registry periodically.
-func (r *Registry) StartRefreshLoop(ctx context.Context) {
+// Returns a channel that is closed when the goroutine exits.
+func (r *Registry) StartRefreshLoop(ctx context.Context) chan struct{} {
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		ticker := time.NewTicker(r.refreshInterval)
 		defer ticker.Stop()
 
@@ -88,4 +91,5 @@ func (r *Registry) StartRefreshLoop(ctx context.Context) {
 			}
 		}
 	}()
+	return done
 }

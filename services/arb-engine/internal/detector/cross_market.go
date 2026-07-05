@@ -28,10 +28,12 @@ func NewCrossMarketDetector(
 	th, err := decimal.NewFromString(minProfitThreshold)
 	if err != nil {
 		th = decimal.NewFromFloat(0.01)
+		logger.Warn("invalid min_profit_threshold, using default 0.01", zap.String("value", minProfitThreshold), zap.Error(err))
 	}
 	st, err := decimal.NewFromString(scoreThreshold)
 	if err != nil {
 		st = decimal.NewFromFloat(0.01)
+		logger.Warn("invalid cross_market_score_threshold, using default 0.01", zap.String("value", scoreThreshold), zap.Error(err))
 	}
 	return &CrossMarketDetector{
 		registry:           registry,
@@ -105,6 +107,10 @@ func (d *CrossMarketDetector) evaluatePair(eventA, eventB ports.MarketPriceUpdat
 		// Earlier deadline (A) should have higher YES price than later deadline (B)
 		// If A.YES < B.YES, buy A.YES (cheaper) for same underlying question
 		spread = eventB.YESPrice.Sub(eventA.YESPrice)
+		// #4: Guard against negative spread
+		if spread.IsNegative() {
+			return nil
+		}
 		marketAID = eventA.MarketID
 		marketBID = eventB.MarketID
 
@@ -112,7 +118,15 @@ func (d *CrossMarketDetector) evaluatePair(eventA, eventB ports.MarketPriceUpdat
 		// If A.YES and B.YES diverge significantly, there's an opportunity
 		// Spread = |A.YES - B.YES| * correlation_confidence
 		diff := eventA.YESPrice.Sub(eventB.YESPrice).Abs()
-		spread = diff.Mul(decimal.NewFromFloat(rel.Confidence))
+		// #13: Clamp confidence to [0, 1]
+		confidence := rel.Confidence
+		if confidence < 0 {
+			confidence = 0
+		}
+		if confidence > 1 {
+			confidence = 1
+		}
+		spread = diff.Mul(decimal.NewFromFloat(confidence))
 		marketAID = eventA.MarketID
 		marketBID = eventB.MarketID
 

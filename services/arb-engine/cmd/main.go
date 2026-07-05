@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -99,7 +100,9 @@ func main() {
 		if err != nil {
 			log.Warn("failed to connect to PostgreSQL for market relationships, cross-market disabled", zap.Error(err))
 		} else {
+			defer postgresRepo.Close() // #2: Close DB connection on shutdown
 			nearRes := detector.NewNearResolutionDetector(cfg.NearResolutionWindowMin, cfg.NearResolutionThreshold, log)
+			nearRes.StartCleanupLoop(ctx) // #7: Cleanup expired entries
 			relRegistry = relationships.NewRegistry(postgresRepo, log)
 			if err := relRegistry.Refresh(ctx); err != nil {
 				log.Warn("failed to refresh relationship registry", zap.Error(err))
@@ -125,13 +128,12 @@ func main() {
 	dedup := newDeduplicator(10000)
 
 	// Store latest prices for cross-market detection
-	priceCache := &priceCache{prices: make(map[string]ports.MarketPriceUpdated)}
+	priceCache := &priceCache{prices: make(map[string]ports.MarketPriceUpdated), maxAge: 5 * time.Minute}
 
 	natsSubscriber.StartWorkers(ctx, func(event ports.MarketPriceUpdated) {
 		if dedup.isDuplicate(event.MarketID + event.Timestamp.String()) {
 			return
 		}
-		priceCache.set(event.MarketID, event)
 		processMarketEvent(ctx, event, arbDetector, crossMarketDetector, scorerEngine, thresholdFilter, natsPublisher, oppLogger, priceCache, log)
 	}, 4)
 
@@ -139,7 +141,6 @@ func main() {
 		if dedup.isDuplicate(event.MarketID + event.Timestamp.String()) {
 			return
 		}
-		priceCache.set(event.MarketID, event)
 		processMarketEvent(ctx, event, arbDetector, crossMarketDetector, scorerEngine, thresholdFilter, natsPublisher, oppLogger, priceCache, log)
 	})
 	if err != nil {
@@ -203,6 +204,15 @@ func processMarketEvent(
 		return
 	}
 
+	// #3: Cache price AFTER stale check — stale prices don't enter cache
+	priceCache.set(event.MarketID, event)
+
+	// #9: Validate prices are positive
+	if event.YESPrice.IsNegative() || event.NOPrice.IsNegative() || event.YESPrice.IsZero() || event.NOPrice.IsZero() {
+		log.Debug("ignoring market with zero/negative prices", zap.String("market_id", event.MarketID))
+		return
+	}
+
 	// Simple YES+NO arb (existing)
 	opp, latencyMs := simpleDetector.Detect(event)
 	if opp != nil {
@@ -236,7 +246,12 @@ func processMarketEvent(
 	if crossDetector != nil {
 		crossOpps := crossDetector.Detect(ctx, event, priceCache.getAll())
 		for _, crossOpp := range crossOpps {
-			scorerEngine.Score(ctx, crossOpp, event.LiquidityDepth, crossOpp.MarketID)
+			// #15: Use related market's liquidity if available
+			liquidityDepth := event.LiquidityDepth
+			if relatedPrice, ok := priceCache.get(crossOpp.RelatedMarketID); ok {
+				liquidityDepth = relatedPrice.LiquidityDepth
+			}
+			scorerEngine.Score(ctx, crossOpp, liquidityDepth, crossOpp.MarketID)
 			metrics.CrossMarketDetected.Inc()
 			metrics.CrossMarketScore.Observe(crossOpp.Score.InexactFloat64())
 
@@ -287,6 +302,7 @@ func publishOpportunity(ctx context.Context, publisher *adapters.NATSPublisher, 
 type priceCache struct {
 	mu      sync.RWMutex
 	prices  map[string]ports.MarketPriceUpdated
+	maxAge  time.Duration
 }
 
 func (c *priceCache) set(marketID string, price ports.MarketPriceUpdated) {
@@ -295,12 +311,23 @@ func (c *priceCache) set(marketID string, price ports.MarketPriceUpdated) {
 	c.prices[marketID] = price
 }
 
+func (c *priceCache) get(marketID string) (ports.MarketPriceUpdated, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	p, ok := c.prices[marketID]
+	return p, ok
+}
+
 func (c *priceCache) getAll() map[string]ports.MarketPriceUpdated {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	result := make(map[string]ports.MarketPriceUpdated, len(c.prices))
+	now := time.Now()
 	for k, v := range c.prices {
-		result[k] = v
+		// #6: Skip stale entries
+		if now.Sub(v.Timestamp) <= c.maxAge {
+			result[k] = v
+		}
 	}
 	return result
 }
@@ -308,27 +335,31 @@ func (c *priceCache) getAll() map[string]ports.MarketPriceUpdated {
 func startMetricsServer(bindAddr, port string, log *zap.Logger, natsPublisher *adapters.NATSPublisher, timescaleRepo *adapters.TimescaleRepo) *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		checks := map[string]bool{
-			"nats":      natsPublisher.IsConnected(),
-			"timescaledb": timescaleRepo.Ping(r.Context()) == nil,
-		}
-		allOk := true
-		for _, ok := range checks {
-			if !ok {
-				allOk = false
-				break
+		mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			checks := map[string]bool{
+				"nats":       natsPublisher.IsConnected(),
+				"timescaledb": timescaleRepo.Ping(r.Context()) == nil,
 			}
-		}
-		status := "ok"
-		code := http.StatusOK
-		if !allOk {
-			status = "degraded"
-			code = http.StatusServiceUnavailable
-		}
-		w.WriteHeader(code)
-		fmt.Fprintf(w, `{"status":"%s","checks":{"nats":%v,"timescaledb":%v}}`, status, checks["nats"], checks["timescaledb"])
-	})
+			allOk := true
+			for _, ok := range checks {
+				if !ok {
+					allOk = false
+					break
+				}
+			}
+			status := "ok"
+			code := http.StatusOK
+			if !allOk {
+				status = "degraded"
+				code = http.StatusServiceUnavailable
+			}
+			w.WriteHeader(code)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"status":  status,
+				"checks":  checks,
+			})
+		})
 
 	addr := bindAddr + ":" + port
 	log.Info("starting metrics server", zap.String("addr", addr))
