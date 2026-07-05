@@ -82,12 +82,18 @@ export function PortfolioOverview() {
   if (error) {
     return (
       <div className="rounded-xl border border-[#ff4757]/30 bg-[#ff4757]/10 backdrop-blur-md p-5 text-[#ff4757]" role="alert">
-        Failed to load portfolio: {error}
+        Failed to load portfolio data. Please try again.
       </div>
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-md p-5 text-gray-400">
+        No portfolio data available
+      </div>
+    );
+  }
 
   return (
     <section className="space-y-4" aria-label="Portfolio Overview">

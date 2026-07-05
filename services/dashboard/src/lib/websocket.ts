@@ -43,15 +43,26 @@ export function createWSClient(options: WSClientOptions) {
     }
 
     setStatus("connecting");
-    // #3: Connect without token in URL; token sent as first frame
+    // #3: Close any existing connection before creating new one
+    if (ws) {
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.close();
+      ws = null;
+    }
     ws = new WebSocket(`${WS_BASE}/ws/dashboard`);
 
     ws.onopen = () => {
-      // #3: Send token as first frame after connection
+      // Send token as first frame after connection
       const token = getToken();
-      if (token) {
-        ws?.send(JSON.stringify({ token }));
+      // #10: Close connection if no token available
+      if (!token) {
+        console.warn("[WS] No JWT token available, closing connection");
+        ws?.close();
+        setStatus("disconnected");
+        return;
       }
+      ws?.send(JSON.stringify({ token }));
       attempt = 0;
       pollingMode = false;
       setStatus("connected");
@@ -76,9 +87,9 @@ export function createWSClient(options: WSClientOptions) {
       scheduleReconnect();
     };
 
-    ws.onerror = (event) => {
-      console.warn("[WS] WebSocket error:", event);
-      ws?.close();
+    ws.onerror = () => {
+      // #3: Don't call ws.close() here — browser already closes it and fires onclose
+      console.warn("[WS] WebSocket error");
     };
   }
 

@@ -159,7 +159,8 @@ export async function fetchSystemHealth(): Promise<SystemHealth> {
 export async function fetchOpportunities(cursor?: string, pageSize = 50, status?: string): Promise<OpportunityListResponse> {
   const params = new URLSearchParams();
   if (cursor) params.set("cursor", cursor);
-  params.set("page_size", String(pageSize));
+  // #9: Validate pageSize bounds
+  params.set("page_size", String(Math.min(Math.max(pageSize, 1), 200)));
   if (status && status !== "all") params.set("status", status);
   const qs = params.toString();
   return request<OpportunityListResponse>(`/api/opportunities${qs ? `?${qs}` : ""}`);

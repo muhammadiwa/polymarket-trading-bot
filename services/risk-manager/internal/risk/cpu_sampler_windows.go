@@ -4,11 +4,13 @@ package risk
 
 import (
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 )
 
 type cpuSampler struct {
+	mu             sync.Mutex
 	prevUserTime   int64
 	prevKernelTime int64
 	prevWall       time.Time
@@ -27,6 +29,9 @@ func filetimeTo100ns(ft syscall.Filetime) int64 {
 }
 
 func (cs *cpuSampler) sample() float64 {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
 	handle, _ := syscall.GetCurrentProcess()
 	var creation, exit, kernel, user syscall.Filetime
 	if err := syscall.GetProcessTimes(handle, &creation, &exit, &kernel, &user); err != nil {

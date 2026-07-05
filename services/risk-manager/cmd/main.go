@@ -117,8 +117,8 @@ func main() {
 
 	// #2: Create and wire CorrelationEngine
 	correlationEngine := risk.NewCorrelationEngine(
-		0.8,                    // threshold
-		cfg.StateRefreshInterval, // update interval
+		0.7,                    // threshold (spec default)
+		time.Hour,              // update interval (spec: every 1 hour)
 		cfg.MaxCorrelatedPositions,
 		natsPublisher,
 		postgresRepo,
@@ -320,15 +320,13 @@ func main() {
 				log.Error("failed to process emergency_stop command", zap.Error(err))
 			}
 		case "pause":
-			batasiMonitor.SetState(risk.BatasiWinState{
-				CurrentStreak: batasiMonitor.GetState().CurrentStreak,
-				Threshold:     batasiMonitor.GetState().Threshold,
-				IsPaused:      true,
-			})
+			st := batasiMonitor.GetState()
+			st.IsPaused = true
+			batasiMonitor.SetState(st)
 			stateBuilder.SetBatasiWinPaused(true)
 		case "resume":
 			batasiMonitor.ManualResume()
-			pb.SetEmergencyStop(false)
+			// Do not clear emergency stop — it's a separate safety mechanism
 		case "parameters_updated":
 			// Parameters are already applied to Redis by API gateway;
 			// risk-manager reads them on next state refresh
@@ -432,6 +430,16 @@ func runStateRefreshLoop(
 			if bw != nil {
 				bwState := bw.GetState()
 				sb.SetWinStreakState(bwState.CurrentStreak, bwState.Threshold)
+				// Check cooldown auto-resume
+				bw.CheckCooldownResume()
+			}
+
+			// #2: Populate correlation exceeded state from CorrelationTracker
+			if ct != nil {
+				corrStates := ct.GetCorrelationState()
+				for groupID, cs := range corrStates {
+					sb.SetCorrelationExceeded(groupID, cs.IsExceeded)
+				}
 			}
 
 			state := sb.BuildState()
