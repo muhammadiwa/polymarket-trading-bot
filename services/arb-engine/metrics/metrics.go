@@ -48,4 +48,26 @@ var (
 		Name: "pqap_arb_stale_market_ignored_total",
 		Help: "Total number of stale market events ignored",
 	})
+
+	// Cross-Market Arbitrage metrics
+	CrossMarketDetected = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "pqap_arb_cross_market_detected_total",
+		Help: "Total number of cross-market arbitrage opportunities detected",
+	})
+
+	CrossMarketScore = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "pqap_arb_cross_market_score",
+		Help:    "Cross-market opportunity scores",
+		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0},
+	})
+
+	NearResolutionTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "pqap_arb_near_resolution_total",
+		Help: "Total number of near-resolution detections",
+	})
+
+	RelationshipCount = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "pqap_arb_relationship_count",
+		Help: "Active market relationships count",
+	})
 )
