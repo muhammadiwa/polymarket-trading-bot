@@ -7,8 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.db import get_pool
 from app.events import StrategyEventPublisher
 from app.middleware.auth import verify_jwt
-from app.models.strategy import StrategyCreate, StrategyListResponse, StrategyResponse, StrategyUpdate
-from app.repos import strategy_repo
+from app.models.strategy import (
+    StrategyCreate, StrategyListResponse, StrategyResponse, StrategyUpdate,
+    VersionListResponse, VersionResponse, WeightUpdateRequest, WeightUpdateResponse,
+)
+from app.repos import strategy_repo, version_repo
 
 logger = logging.getLogger(__name__)
 
@@ -147,3 +150,139 @@ async def deactivate_strategy(strategy_id: str, _user: dict = Depends(verify_jwt
         )
 
     return strategy
+
+
+# --- Version History Endpoints ---
+
+
+@router.get("/{strategy_id}/versions", response_model=VersionListResponse)
+async def list_versions(
+    strategy_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    _user: dict = Depends(verify_jwt),
+):
+    _validate_uuid(strategy_id)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Verify strategy exists
+        strategy = await strategy_repo.get_strategy(conn, strategy_id)
+        if strategy is None:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        items = await version_repo.get_versions(conn, strategy_id, limit, offset)
+
+    return VersionListResponse(items=items, total=len(items))
+
+
+@router.get("/{strategy_id}/versions/{version_id}", response_model=VersionResponse)
+async def get_version(strategy_id: str, version_id: str, _user: dict = Depends(verify_jwt)):
+    _validate_uuid(strategy_id)
+    _validate_uuid(version_id, "version_id")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        version = await version_repo.get_version(conn, strategy_id, version_id)
+
+    if version is None:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return version
+
+
+@router.post("/{strategy_id}/rollback/{version_id}", response_model=StrategyResponse)
+async def rollback_strategy(strategy_id: str, version_id: str, user: dict = Depends(verify_jwt)):
+    _validate_uuid(strategy_id)
+    _validate_uuid(version_id, "version_id")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Get the target version
+        version = await version_repo.get_version(conn, strategy_id, version_id)
+        if version is None:
+            raise HTTPException(status_code=404, detail="Version not found")
+
+        # Get current strategy
+        current = await strategy_repo.get_strategy(conn, strategy_id)
+        if current is None:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+
+        # Create version of current state (audit trail)
+        current_params = {
+            "name": current.name, "description": current.description,
+            "min_profit_threshold": current.min_profit_threshold, "score_threshold": current.score_threshold,
+            "max_position_size": current.max_position_size, "max_daily_trades": current.max_daily_trades,
+            "risk_limit_pct": current.risk_limit_pct, "capital_weight": current.capital_weight,
+            "status": current.status,
+        }
+        await version_repo.create_version(
+            conn, strategy_id, current_params,
+            f"Before rollback to version {version['version_number']}",
+            user.get("user_id"),
+        )
+
+        # Apply version parameters (preserve status)
+        target_params = version["parameters"]
+        target_params["status"] = current.status  # Don't change status
+
+        update_data = StrategyUpdate(
+            name=target_params.get("name"),
+            description=target_params.get("description", ""),
+            min_profit_threshold=target_params.get("min_profit_threshold"),
+            score_threshold=target_params.get("score_threshold"),
+            max_position_size=target_params.get("max_position_size"),
+            max_daily_trades=target_params.get("max_daily_trades"),
+            risk_limit_pct=target_params.get("risk_limit_pct"),
+            capital_weight=target_params.get("capital_weight"),
+        )
+        strategy = await strategy_repo.update_strategy(conn, strategy_id, update_data, user.get("user_id"))
+
+        # Create rollback version
+        await version_repo.create_version(
+            conn, strategy_id, target_params,
+            f"Rollback to version {version['version_number']}",
+            user.get("user_id"),
+        )
+
+    if event_publisher:
+        await event_publisher.publish_strategy_updated(
+            strategy.id, strategy.name, strategy.status, "rollback",
+            {"rollback_to_version": version["version_number"]},
+        )
+
+    return strategy
+
+
+# --- Capital Allocation Weights ---
+
+
+@router.post("/weights", response_model=WeightUpdateResponse)
+async def update_weights(body: WeightUpdateRequest, user: dict = Depends(verify_jwt)):
+    if not body.weights:
+        raise HTTPException(status_code=400, detail="Weights dict cannot be empty")
+
+    # Validate sum == 100% ±0.01%
+    total = sum(body.weights.values())
+    if abs(total - 100.0) > 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Weights must sum to 100% (±0.01%). Current sum: {total:.4f}%",
+        )
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for strategy_id, weight in body.weights.items():
+            _validate_uuid(strategy_id)
+            # Verify strategy exists
+            strategy = await strategy_repo.get_strategy(conn, strategy_id)
+            if strategy is None:
+                raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+
+            # Update weight
+            update_data = StrategyUpdate(capital_weight=weight)
+            await strategy_repo.update_strategy(conn, strategy_id, update_data, user.get("user_id"))
+
+    if event_publisher:
+        await event_publisher.publish_strategy_weights_updated(body.weights)
+
+    return WeightUpdateResponse(
+        weights=body.weights,
+        total=total,
+        updated_count=len(body.weights),
+    )

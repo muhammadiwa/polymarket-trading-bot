@@ -4,6 +4,7 @@ from typing import Optional
 import asyncpg
 
 from app.models.strategy import StrategyCreate, StrategyResponse, StrategyUpdate
+from app.repos import version_repo
 
 # #1: Allowlist for dynamic update fields — defense-in-depth against injection
 ALLOWED_UPDATE_FIELDS = {
@@ -86,15 +87,18 @@ async def list_strategies(
 
 
 async def update_strategy(
-    conn: asyncpg.Connection, strategy_id: str, data: StrategyUpdate
+    conn: asyncpg.Connection, strategy_id: str, data: StrategyUpdate, changed_by: Optional[str] = None
 ) -> Optional[StrategyResponse]:
+    # Get current state before update
+    current = await get_strategy(conn, strategy_id)
+    if current is None:
+        return None
+
     fields = []
     params = []
     idx = 1
 
     for field, value in data.model_dump(exclude_unset=True).items():
-        # #1: Only allow whitelisted fields
-        # #4: Explicitly exclude status, id, created_at, activated_at
         if field not in ALLOWED_UPDATE_FIELDS:
             continue
         if value is not None:
@@ -103,7 +107,24 @@ async def update_strategy(
             idx += 1
 
     if not fields:
-        return await get_strategy(conn, strategy_id)
+        return current
+
+    # #2: Create version snapshot before applying changes
+    old_params = {
+        "name": current.name,
+        "description": current.description,
+        "min_profit_threshold": current.min_profit_threshold,
+        "score_threshold": current.score_threshold,
+        "max_position_size": current.max_position_size,
+        "max_daily_trades": current.max_daily_trades,
+        "risk_limit_pct": current.risk_limit_pct,
+        "capital_weight": current.capital_weight,
+        "status": current.status,
+    }
+    new_params = {**old_params, **data.model_dump(exclude_unset=True)}
+    change_summary = version_repo.generate_change_summary(old_params, new_params)
+
+    await version_repo.create_version(conn, strategy_id, old_params, change_summary, changed_by)
 
     fields.append(f"updated_at = ${idx}")
     params.append(datetime.now(timezone.utc))

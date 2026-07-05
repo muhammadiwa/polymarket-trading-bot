@@ -48,3 +48,28 @@ class StrategyResponse(BaseModel):
 class StrategyListResponse(BaseModel):
     items: list[StrategyResponse]
     total: int
+
+
+class VersionResponse(BaseModel):
+    id: str
+    strategy_id: str
+    version_number: int
+    parameters: dict
+    change_summary: str
+    changed_by: Optional[str]
+    created_at: datetime
+
+
+class VersionListResponse(BaseModel):
+    items: list[VersionResponse]
+    total: int
+
+
+class WeightUpdateRequest(BaseModel):
+    weights: dict[str, float]  # {strategy_id: weight}
+
+
+class WeightUpdateResponse(BaseModel):
+    weights: dict[str, float]
+    total: float
+    updated_count: int

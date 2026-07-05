@@ -45,3 +45,25 @@ class StrategyEventPublisher:
             logger.info("published StrategyUpdated event", extra={"strategy_id": strategy_id, "action": action})
         except Exception as e:
             logger.error("failed to publish StrategyUpdated event", exc_info=e)
+
+    async def publish_strategy_weights_updated(self, weights: dict):
+        if not self._nc:
+            logger.warning("NATS not connected, skipping event publish")
+            return
+
+        event = {
+            "event_id": str(uuid4()),
+            "event_type": "StrategyWeightsUpdated",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "strategy-manager",
+            "payload": {
+                "weights": weights,
+                "total": sum(weights.values()),
+            },
+        }
+
+        try:
+            await self._nc.publish("pqap.strategy.weights.updated", json.dumps(event).encode())
+            logger.info("published StrategyWeightsUpdated event", extra={"weights": weights})
+        except Exception as e:
+            logger.error("failed to publish StrategyWeightsUpdated event", exc_info=e)

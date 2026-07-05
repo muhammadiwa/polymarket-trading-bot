@@ -232,8 +232,31 @@ pqap_strategy_manager_weight_changes_total  # Counter — weight changes
 
 ### Agent Model Used
 
+mimo-v2.5-pro
+
 ### Debug Log References
+
+- Extended existing strategy-manager service from Story 3.2
+- Version repo uses JSONB for flexible parameter snapshots
 
 ### Completion Notes List
 
+- Task 1: strategy_versions table with JSONB parameters, sequential version numbers
+- Task 2: update_strategy creates version before applying changes
+- Task 3: Version history API (list, get, rollback) with audit trail
+- Task 4: Weight validation (sum=100% ±0.01%), NATS event publishing
+- Task 5: Rollback preserves strategy status, creates before+after versions
+
 ### File List
+
+**New files:**
+- `migrations/postgres/012_create_strategy_versions.up.sql`
+- `migrations/postgres/012_create_strategy_versions.down.sql`
+- `services/strategy-manager/app/repos/version_repo.py`
+
+**Modified files:**
+- `migrations/postgres/011_create_strategies.up.sql` — capital_weight default changed to 0
+- `services/strategy-manager/app/repos/strategy_repo.py` — version creation on update
+- `services/strategy-manager/app/models/strategy.py` — added VersionResponse, WeightUpdateRequest
+- `services/strategy-manager/app/events.py` — added publish_strategy_weights_updated
+- `services/strategy-manager/app/routes/strategies.py` — added version + weight endpoints

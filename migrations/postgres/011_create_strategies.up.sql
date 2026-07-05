@@ -11,8 +11,8 @@ CREATE TABLE strategies (
     max_daily_trades INT NOT NULL DEFAULT 50,
     risk_limit_pct DECIMAL(5,2) NOT NULL DEFAULT 5.0,
     
-    -- Capital allocation
-    capital_weight DECIMAL(5,2) NOT NULL DEFAULT 100.0,
+    -- Capital allocation (default 0 — user must assign weights explicitly)
+    capital_weight DECIMAL(5,2) NOT NULL DEFAULT 0.0,
     
     -- Multi-account support (nullable) per INF-18
     account_id UUID,
