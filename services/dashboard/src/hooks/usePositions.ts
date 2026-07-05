@@ -19,14 +19,17 @@ export function usePositions(): UsePositionsResult {
   const [error, setError] = useState<string | null>(null);
   const wsDataReceived = useRef(false);
 
+  // WS effect — always apply (not just first message)
   useEffect(() => {
-    if (positionData && !wsDataReceived.current) {
+    if (positionData) {
       wsDataReceived.current = true;
       setData(positionData);
       setLoading(false);
+      setError(null);
     }
   }, [positionData]);
 
+  // REST fallback — only if WS hasn't sent data yet
   useEffect(() => {
     let cancelled = false;
 
@@ -38,7 +41,7 @@ export function usePositions(): UsePositionsResult {
         }
       })
       .catch((err) => {
-        if (!cancelled) {
+        if (!cancelled && !wsDataReceived.current) {
           setError(err instanceof Error ? err.message : "Failed to load positions");
           setLoading(false);
         }
