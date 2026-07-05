@@ -125,21 +125,27 @@ func (sb *StateBuilder) SetMetabolicAlert(alert bool) {
 func (sb *StateBuilder) SetStrategyWeights(weights map[string]decimal.Decimal) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
-	// #9: Validate each weight is in [0, 100]
+	// #19: Create defensive copy to avoid mutating caller's map
+	wCopy := make(map[string]decimal.Decimal, len(weights))
 	for id, w := range weights {
-		if w.IsNegative() || w.GreaterThan(decimal.NewFromInt(100)) {
-			sb.logger.Warn("invalid strategy weight, clamping",
+		// #9: Validate each weight is in [0, 100]
+		if w.IsNegative() {
+			sb.logger.Warn("negative strategy weight, clamping to 0",
 				zap.String("strategy_id", id),
 				zap.String("weight", w.String()),
 			)
-			if w.IsNegative() {
-				weights[id] = decimal.Zero
-			} else {
-				weights[id] = decimal.NewFromInt(100)
-			}
+			wCopy[id] = decimal.Zero
+		} else if w.GreaterThan(decimal.NewFromInt(100)) {
+			sb.logger.Warn("strategy weight exceeds 100, clamping",
+				zap.String("strategy_id", id),
+				zap.String("weight", w.String()),
+			)
+			wCopy[id] = decimal.NewFromInt(100)
+		} else {
+			wCopy[id] = w
 		}
 	}
-	sb.strategyWeights = weights
+	sb.strategyWeights = wCopy
 }
 
 // #7: GetStrategyWeight returns weight for a single strategy without full BuildState()

@@ -1,6 +1,6 @@
 CREATE TABLE strategy_versions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    strategy_id UUID NOT NULL REFERENCES strategies(id) ON DELETE CASCADE,
+    strategy_id UUID NOT NULL REFERENCES strategies(id) ON DELETE RESTRICT,
     version_number INT NOT NULL,
     
     -- Full parameter snapshot

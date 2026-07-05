@@ -16,35 +16,27 @@ async def create_version(
     changed_by: Optional[str] = None,
 ) -> dict:
     """Create a new version for a strategy. Returns the version record."""
-    # #3: Atomic version number generation — single INSERT with subquery
-    try:
-        version_row = await conn.fetchrow(
-            """
-            INSERT INTO strategy_versions (strategy_id, version_number, parameters, change_summary, changed_by)
-            VALUES (
-                $1::uuid,
-                (SELECT COALESCE(MAX(version_number), 0) + 1 FROM strategy_versions WHERE strategy_id = $1::uuid),
-                $2::jsonb, $3, $4::uuid
+    # Atomic version number generation with retry on collision
+    for attempt in range(3):
+        try:
+            version_row = await conn.fetchrow(
+                """
+                INSERT INTO strategy_versions (strategy_id, version_number, parameters, change_summary, changed_by)
+                VALUES (
+                    $1::uuid,
+                    (SELECT COALESCE(MAX(version_number), 0) + 1 FROM strategy_versions WHERE strategy_id = $1::uuid),
+                    $2::jsonb, $3, $4::uuid
+                )
+                RETURNING id, strategy_id, version_number, parameters, change_summary, changed_by, created_at
+                """,
+                strategy_id, json.dumps(parameters), change_summary, changed_by,
             )
-            RETURNING id, strategy_id, version_number, parameters, change_summary, changed_by, created_at
-            """,
-            strategy_id, json.dumps(parameters), change_summary, changed_by,
-        )
-    except asyncpg.UniqueViolationError:
-        # Retry once on collision
-        version_row = await conn.fetchrow(
-            """
-            INSERT INTO strategy_versions (strategy_id, version_number, parameters, change_summary, changed_by)
-            VALUES (
-                $1::uuid,
-                (SELECT COALESCE(MAX(version_number), 0) + 1 FROM strategy_versions WHERE strategy_id = $1::uuid),
-                $2::jsonb, $3, $4::uuid
-            )
-            RETURNING id, strategy_id, version_number, parameters, change_summary, changed_by, created_at
-            """,
-            strategy_id, json.dumps(parameters), change_summary, changed_by,
-        )
-    return _version_to_dict(version_row)
+            return _version_to_dict(version_row)
+        except asyncpg.UniqueViolationError:
+            if attempt == 2:
+                raise
+            logger.warning("version number collision, retrying", extra={"strategy_id": strategy_id, "attempt": attempt + 1})
+    raise RuntimeError("Failed to create version after 3 attempts")
 
 
 async def get_versions(

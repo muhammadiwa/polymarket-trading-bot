@@ -86,9 +86,12 @@ async def update_capital(
         reason = None
 
         if tier_info["tier"] > current_tier:
-            # #5: Calendar-based day tracking — use last_updated date
+            # #5: Calendar-based day tracking
             last_updated = current.get("updated_at")
             now = datetime.now(timezone.utc)
+            # #24: Ensure timezone-aware comparison
+            if last_updated is not None and last_updated.tzinfo is None:
+                last_updated = last_updated.replace(tzinfo=timezone.utc)
             if last_updated and (now - last_updated).total_seconds() < 86400:
                 # Same calendar day — don't increment again
                 pass
