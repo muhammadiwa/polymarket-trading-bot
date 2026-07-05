@@ -125,7 +125,31 @@ func (sb *StateBuilder) SetMetabolicAlert(alert bool) {
 func (sb *StateBuilder) SetStrategyWeights(weights map[string]decimal.Decimal) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
+	// #9: Validate each weight is in [0, 100]
+	for id, w := range weights {
+		if w.IsNegative() || w.GreaterThan(decimal.NewFromInt(100)) {
+			sb.logger.Warn("invalid strategy weight, clamping",
+				zap.String("strategy_id", id),
+				zap.String("weight", w.String()),
+			)
+			if w.IsNegative() {
+				weights[id] = decimal.Zero
+			} else {
+				weights[id] = decimal.NewFromInt(100)
+			}
+		}
+	}
 	sb.strategyWeights = weights
+}
+
+// #7: GetStrategyWeight returns weight for a single strategy without full BuildState()
+func (sb *StateBuilder) GetStrategyWeight(strategyID string) decimal.Decimal {
+	sb.mu.RLock()
+	defer sb.mu.RUnlock()
+	if sb.strategyWeights == nil {
+		return decimal.Zero
+	}
+	return sb.strategyWeights[strategyID]
 }
 
 // #15: BuildState holds a single RLock for entire snapshot instead of per-field locks.

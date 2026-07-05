@@ -212,19 +212,38 @@ func (pb *PitBoss) evaluate(req ports.RiskCheckRequest) ports.RiskDecision {
 
 	// #2: Check per-strategy capital allocation
 	if req.StrategyID != "" {
-		strategyWeight := pb.getStrategyWeight(req.StrategyID)
-		if strategyWeight.GreaterThan(decimal.Zero) {
-			maxAllocation := pb.capital.Mul(strategyWeight).Div(decimal.NewFromInt(100))
-			currentUsage := pb.strategyLimits.GetExposure(req.StrategyID)
-			if currentUsage.Add(req.TradeSize).GreaterThan(maxAllocation) {
-				base.Decision = "DENY"
-				base.Reason = "strategy_allocation_exceeded"
-				base.CurrentExposure = currentUsage
-				base.LimitValue = maxAllocation
-				base.Context["strategy_weight"] = strategyWeight.String()
-				base.Context["max_allocation"] = maxAllocation.String()
-				return base
-			}
+		// #7: Use dedicated getter instead of full BuildState()
+		strategyWeight := pb.stateBuilder.GetStrategyWeight(req.StrategyID)
+
+		// #5, #8: If weight is zero or negative, deny — no unconfigured access
+		if strategyWeight.LessThanOrEqual(decimal.Zero) {
+			base.Decision = "DENY"
+			base.Reason = "strategy_weight_not_configured"
+			base.CurrentExposure = decimal.Zero
+			base.LimitValue = decimal.Zero
+			base.Context["strategy_id"] = req.StrategyID
+			return base
+		}
+
+		// Validate weight is in [0, 100]
+		if strategyWeight.GreaterThan(decimal.NewFromInt(100)) {
+			base.Decision = "DENY"
+			base.Reason = "strategy_weight_invalid"
+			base.CurrentExposure = decimal.Zero
+			base.LimitValue = decimal.Zero
+			return base
+		}
+
+		maxAllocation := pb.capital.Mul(strategyWeight).Div(decimal.NewFromInt(100))
+		currentUsage := pb.strategyLimits.GetExposure(req.StrategyID)
+		if currentUsage.Add(req.TradeSize).GreaterThan(maxAllocation) {
+			base.Decision = "DENY"
+			base.Reason = "strategy_allocation_exceeded"
+			base.CurrentExposure = currentUsage
+			base.LimitValue = maxAllocation
+			base.Context["strategy_weight"] = strategyWeight.String()
+			base.Context["max_allocation"] = maxAllocation.String()
+			return base
 		}
 	}
 
@@ -292,8 +311,16 @@ func (pb *PitBoss) HandlePositionOpened(event ports.PositionOpened) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	// #13: Access Payload fields correctly
+	// #14: Guard against zero or negative exposure
 	exposure := event.Payload.EntryPrice.Mul(event.Payload.Quantity)
+	if exposure.LessThanOrEqual(decimal.Zero) {
+		pb.zapLogger.Warn("ignoring zero/negative exposure position",
+			zap.String("market_id", event.Payload.MarketID),
+			zap.String("exposure", exposure.String()),
+		)
+		return
+	}
+
 	pb.marketLimits.AddExposure(event.Payload.MarketID, exposure)
 	pb.strategyLimits.AddExposure(event.Payload.StrategyID, exposure)
 
@@ -396,15 +423,4 @@ func (pb *PitBoss) SetMetabolicMonitor(mm *risk.MetabolicMonitor) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 	pb.metabolicMonitor = mm
-}
-
-// #2: Get strategy weight from state builder
-func (pb *PitBoss) getStrategyWeight(strategyID string) decimal.Decimal {
-	// Weight is stored in the strategies table and cached in Redis
-	// For now, read from state builder if available
-	state := pb.stateBuilder.BuildState()
-	if weight, ok := state.StrategyWeights[strategyID]; ok {
-		return weight
-	}
-	return decimal.Zero
 }

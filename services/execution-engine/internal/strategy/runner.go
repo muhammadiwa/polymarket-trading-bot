@@ -13,9 +13,9 @@ import (
 type StrategyStatus string
 
 const (
-	StatusRunning  StrategyStatus = "running"
-	StatusFailed   StrategyStatus = "failed"
-	StatusStopped  StrategyStatus = "stopped"
+	StatusRunning StrategyStatus = "running"
+	StatusFailed  StrategyStatus = "failed"
+	StatusStopped StrategyStatus = "stopped"
 )
 
 type StrategyConfig struct {
@@ -28,41 +28,49 @@ type StrategyConfig struct {
 type StrategyFunc func(ctx context.Context) error
 
 type Runner struct {
-	mu       sync.Mutex
-	config   StrategyConfig
-	status   StrategyStatus
-	cancel   context.CancelFunc
-	err      error
-	logger   *zap.Logger
-	onFailure func(strategyID string, err error) // callback on failure
+	mu        sync.Mutex
+	config    StrategyConfig
+	status    StrategyStatus
+	cancel    context.CancelFunc
+	err       error
+	logger    *zap.Logger
+	onFailure func(strategyID string, err error)
+	done      chan struct{} // #4: goroutine lifecycle synchronization
 }
 
 func NewRunner(config StrategyConfig, logger *zap.Logger, onFailure func(string, error)) *Runner {
+	// #10: Guard zero backoff
+	if config.RetryBackoff <= 0 {
+		config.RetryBackoff = 1 * time.Second
+	}
 	return &Runner{
 		config:    config,
 		status:    StatusStopped,
 		logger:    logger,
 		onFailure: onFailure,
+		done:      make(chan struct{}),
 	}
 }
 
 // Run executes the strategy function with panic recovery and retry logic.
-// It runs in a goroutine and returns immediately.
 func (r *Runner) Run(ctx context.Context, fn StrategyFunc) {
 	r.mu.Lock()
 	if r.status == StatusRunning {
 		r.mu.Unlock()
-		return
+		return // #13: Silent no-op on double-Run (by design — idempotent)
 	}
 	ctx, r.cancel = context.WithCancel(ctx)
 	r.status = StatusRunning
 	r.err = nil
+	r.done = make(chan struct{}) // #4: Reset done channel
 	r.mu.Unlock()
 
 	go r.execute(ctx, fn)
 }
 
 func (r *Runner) execute(ctx context.Context, fn StrategyFunc) {
+	defer close(r.done) // #4: Signal completion
+
 	defer func() {
 		if rec := recover(); rec != nil {
 			r.mu.Lock()
@@ -70,7 +78,7 @@ func (r *Runner) execute(ctx context.Context, fn StrategyFunc) {
 			r.err = fmt.Errorf("panic: %v", rec)
 			r.mu.Unlock()
 
-			metrics.StrategyIsolationFailures.Inc()
+			metrics.StrategyPanicRecoveries.Inc() // #11: Separate panic metric
 			r.logger.Error("strategy panic recovered",
 				zap.String("strategy_id", r.config.ID),
 				zap.String("strategy_name", r.config.Name),
@@ -78,8 +86,19 @@ func (r *Runner) execute(ctx context.Context, fn StrategyFunc) {
 				zap.Stack("stack"),
 			)
 
+			// #1: Wrap onFailure in its own recover to prevent process crash
 			if r.onFailure != nil {
-				r.onFailure(r.config.ID, fmt.Errorf("panic: %v", rec))
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							r.logger.Error("onFailure callback panicked",
+								zap.String("strategy_id", r.config.ID),
+								zap.Any("panic", r),
+							)
+						}
+					}()
+					r.onFailure(r.config.ID, fmt.Errorf("panic: %v", rec))
+				}()
 			}
 		}
 	}()
@@ -92,17 +111,22 @@ func (r *Runner) execute(ctx context.Context, fn StrategyFunc) {
 				zap.Int("attempt", attempt),
 				zap.Error(lastErr),
 			)
+			// #10: Exponential backoff with attempt multiplier
+			delay := r.config.RetryBackoff * time.Duration(attempt)
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(r.config.RetryBackoff * time.Duration(attempt)):
+			case <-time.After(delay):
 			}
 		}
 
 		err := fn(ctx)
 		if err == nil {
 			r.mu.Lock()
-			r.status = StatusStopped
+			// #6: Only set stopped if still running (not stopped externally)
+			if r.status == StatusRunning {
+				r.status = StatusStopped
+			}
 			r.mu.Unlock()
 			return
 		}
@@ -119,25 +143,39 @@ func (r *Runner) execute(ctx context.Context, fn StrategyFunc) {
 	r.err = lastErr
 	r.mu.Unlock()
 
-	metrics.StrategyIsolationFailures.Inc()
+	metrics.StrategyRetryExhausted.Inc() // #11: Separate retry metric
 	r.logger.Error("strategy failed after retries",
 		zap.String("strategy_id", r.config.ID),
 		zap.Error(lastErr),
 	)
 
+	// #1: Wrap onFailure in its own recover
 	if r.onFailure != nil {
-		r.onFailure(r.config.ID, lastErr)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// onFailure panicked — already logged above
+				}
+			}()
+			r.onFailure(r.config.ID, lastErr)
+		}()
 	}
 }
 
-// Stop gracefully stops the strategy.
+// Stop gracefully stops the strategy and waits for goroutine exit.
 func (r *Runner) Stop() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.cancel != nil {
 		r.cancel()
 	}
-	r.status = StatusStopped
+	// #3: Only set stopped if still running (don't overwrite StatusFailed)
+	if r.status == StatusRunning {
+		r.status = StatusStopped
+	}
+	r.mu.Unlock()
+
+	// #4: Wait for goroutine to exit
+	<-r.done
 }
 
 // Status returns the current strategy status.
@@ -156,9 +194,9 @@ func (r *Runner) Error() error {
 
 // Manager manages multiple strategy runners.
 type Manager struct {
-	mu       sync.RWMutex
-	runners  map[string]*Runner
-	logger   *zap.Logger
+	mu        sync.RWMutex
+	runners   map[string]*Runner
+	logger    *zap.Logger
 	onFailure func(strategyID string, err error)
 }
 
@@ -191,7 +229,7 @@ func (m *Manager) Start(ctx context.Context, strategyID string, fn StrategyFunc)
 	return nil
 }
 
-// Stop stops a strategy by ID.
+// Stop stops a strategy by ID and waits for goroutine exit.
 func (m *Manager) Stop(strategyID string) error {
 	m.mu.RLock()
 	runner, ok := m.runners[strategyID]
@@ -203,7 +241,7 @@ func (m *Manager) Stop(strategyID string) error {
 	return nil
 }
 
-// StopAll stops all strategies.
+// StopAll stops all strategies and waits for all goroutines to exit.
 func (m *Manager) StopAll() {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

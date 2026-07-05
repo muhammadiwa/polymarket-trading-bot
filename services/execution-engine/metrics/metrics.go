@@ -153,9 +153,14 @@ var (
 	})
 
 	// Strategy isolation metrics
-	StrategyIsolationFailures = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "pqap_strategy_isolation_failures_total",
-		Help: "Total strategy failures caught by panic recovery",
+	StrategyPanicRecoveries = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "pqap_strategy_panic_recoveries_total",
+		Help: "Total strategy panics caught by recovery",
+	})
+
+	StrategyRetryExhausted = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "pqap_strategy_retry_exhausted_total",
+		Help: "Total strategies failed after all retries exhausted",
 	})
 
 	StrategyCapitalRejections = promauto.NewCounter(prometheus.CounterOpts{
