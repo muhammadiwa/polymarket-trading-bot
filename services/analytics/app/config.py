@@ -15,7 +15,7 @@ class Config:
     ANOMALY_CONSECUTIVE_LOSSES: int = int(os.getenv("ANOMALY_CONSECUTIVE_LOSSES", "5"))
     ANOMALY_PROFIT_FACTOR_LOW: float = float(os.getenv("ANOMALY_PROFIT_FACTOR_LOW", "0.5"))
     ANOMALY_SHARPE_LOW: float = float(os.getenv("ANOMALY_SHARPE_LOW", "0"))
-    ANOMALY_CHECK_INTERVAL: int = int(os.getenv("ANOMALY_CHECK_INTERVAL_SECONDS", "3600"))
+    ANOMALY_CHECK_INTERVAL: int = max(60, int(os.getenv("ANOMALY_CHECK_INTERVAL_SECONDS", "3600")))
 
 
 config = Config()

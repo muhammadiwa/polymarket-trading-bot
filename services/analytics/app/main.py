@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import nats
 from fastapi import FastAPI
 from prometheus_client import Counter, Histogram, make_asgi_app
 
@@ -38,29 +39,38 @@ async def anomaly_check_loop():
                 }
                 anomalies = await analytics_repo.detect_anomalies(conn, thresholds)
 
-                for anomaly in anomalies:
-                    anomaly_id = await analytics_repo.log_anomaly(conn, anomaly)
-                    ANOMALIES_DETECTED.inc()
-                    logger.warning("anomaly detected",
-                        extra={"anomaly_id": anomaly_id, "type": anomaly["anomaly_type"],
-                               "severity": anomaly["severity"], "metric": anomaly["metric_name"]})
-
-                    # Publish to NATS (fire-and-forget)
+                if anomalies:
+                    # #1: Single NATS connection for all anomalies in this batch
+                    nc = None
                     try:
-                        import nats
                         nc = await nats.connect(config.NATS_URL)
-                        event = {
-                            "event_id": str(uuid4()),
-                            "event_type": "AnomalyDetected",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "source": "analytics",
-                            "payload": {**anomaly, "id": anomaly_id},
-                        }
-                        await nc.publish("pqap.analytics.anomaly", json.dumps(event).encode())
-                        await nc.close()
-                        ANOMALY_ALERTS_SENT.inc()
+                        for anomaly in anomalies:
+                            anomaly_id = await analytics_repo.log_anomaly(conn, anomaly)
+                            if anomaly_id:
+                                ANOMALIES_DETECTED.inc()
+                                logger.warning("anomaly detected",
+                                    extra={"anomaly_id": anomaly_id, "type": anomaly["anomaly_type"],
+                                           "severity": anomaly["severity"], "metric": anomaly["metric_name"]})
+
+                                # #2: Publish with guaranteed close
+                                event = {
+                                    "event_id": str(uuid4()),
+                                    "event_type": "AnomalyDetected",
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                    "source": "analytics",
+                                    "payload": {**anomaly, "id": anomaly_id},
+                                }
+                                await nc.publish("pqap.analytics.anomaly", json.dumps(event).encode())
+                                ANOMALY_ALERTS_SENT.inc()
                     except Exception as e:
                         logger.error("failed to publish anomaly alert", exc_info=e)
+                    finally:
+                        # #2: Guarantee connection close
+                        if nc:
+                            try:
+                                await nc.close()
+                            except Exception:
+                                pass
 
         except Exception as e:
             logger.error("anomaly check failed", exc_info=e)
@@ -73,6 +83,8 @@ async def lifespan(app: FastAPI):
     await init_pool()
     # Start background anomaly checker
     task = asyncio.create_task(anomaly_check_loop())
+    # #6: Add exception callback so task failures are logged
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
     logger.info("analytics service started")
     yield
     task.cancel()

@@ -256,11 +256,11 @@ async def detect_anomalies(
 
     anomalies = []
 
-    # Get current (last 24h) and baseline (7-day) metrics
+    # Get current (last 24h) and baseline (7d to 1d ago, NOT including current)
     current_perf = await calculate_performance_metrics(conn, day_ago, now)
-    baseline_perf = await calculate_performance_metrics(conn, week_ago, now)
+    baseline_perf = await calculate_performance_metrics(conn, week_ago, day_ago)
     current_risk = await calculate_risk_metrics(conn, day_ago, now)
-    baseline_risk = await calculate_risk_metrics(conn, week_ago, now)
+    baseline_risk = await calculate_risk_metrics(conn, week_ago, day_ago)
 
     # Rule 1: Win rate drop
     current_wr = Decimal(current_perf["win_rate"]) if current_perf["win_rate"] else ZERO
@@ -298,7 +298,11 @@ async def detect_anomalies(
     consecutive = 0
     max_seen = 0
     for t in recent_trades:
-        if Decimal(str(t["pnl"])) < ZERO:
+        # #4: Guard against NULL pnl
+        pnl_val = t.get("pnl")
+        if pnl_val is None:
+            continue
+        if Decimal(str(pnl_val)) < ZERO:
             consecutive += 1
             if consecutive > max_seen:
                 max_seen = consecutive
@@ -349,7 +353,17 @@ async def detect_anomalies(
 
 
 async def log_anomaly(conn: asyncpg.Connection, anomaly: dict) -> str:
-    """Log anomaly to PostgreSQL."""
+    """Log anomaly to PostgreSQL. Returns ID if new, None if duplicate."""
+    # #5: Suppress duplicates — check if same anomaly_type was logged in last 24h
+    from datetime import timedelta
+    day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+    existing = await conn.fetchrow(
+        "SELECT id FROM anomaly_events WHERE anomaly_type = $1 AND detected_at > $2 LIMIT 1",
+        anomaly["anomaly_type"], day_ago,
+    )
+    if existing:
+        return str(existing["id"])  # Already logged recently
+
     row = await conn.fetchrow(
         """
         INSERT INTO anomaly_events (anomaly_type, metric_name, threshold_value, actual_value, severity, confidence, context)
