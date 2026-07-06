@@ -83,3 +83,36 @@ export interface WSMessage {
   payload: PortfolioOverview | Position[] | RiskStatus | SystemHealth | Opportunity;
   timestamp: string;
 }
+
+export interface PnLByPeriod {
+  date: string;
+  pnl: string;
+  trade_count: number;
+}
+
+export interface PnLByStrategy {
+  strategy_id: string;
+  total_pnl: string;
+  trade_count: number;
+}
+
+export interface PnLByMarket {
+  market_id: string;
+  market_slug: string;
+  total_pnl: string;
+  trade_count: number;
+}
+
+export interface PnLData {
+  by_period: PnLByPeriod[];
+  by_strategy: PnLByStrategy[];
+  by_market: PnLByMarket[];
+  total_pnl: string;
+  total_trades: number;
+}
+
+export interface HistogramData {
+  pnls: number[];
+  count: number;
+  bins: number;
+}

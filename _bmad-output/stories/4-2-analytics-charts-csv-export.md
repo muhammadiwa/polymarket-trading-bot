@@ -177,8 +177,25 @@ pqap_analytics_csv_export_latency_ms    # Histogram — CSV export time
 
 ### Agent Model Used
 
-### Debug Log References
+mimo-v2.5-pro
 
 ### Completion Notes List
 
+- Task 1: Backend — /api/analytics/export (StreamingResponse CSV) + /api/analytics/histogram
+- Task 2: Frontend — PnLLineChart, PnLHistogram, StrategyPieChart (recharts)
+- Task 3: Frontend — Analytics page with date picker + CSV download
+- Task 4: Frontend — useAnalytics hook + API functions + types
+
 ### File List
+
+**New files:**
+- `services/dashboard/src/app/analytics/page.tsx`
+- `services/dashboard/src/components/charts/PnLLineChart.tsx`
+- `services/dashboard/src/components/charts/PnLHistogram.tsx`
+- `services/dashboard/src/components/charts/StrategyPieChart.tsx`
+- `services/dashboard/src/hooks/useAnalytics.ts`
+
+**Modified files:**
+- `services/analytics/app/routes/analytics.py` — added histogram + export endpoints
+- `services/dashboard/src/lib/api.ts` — added analytics API functions
+- `services/dashboard/src/types/index.ts` — added analytics types

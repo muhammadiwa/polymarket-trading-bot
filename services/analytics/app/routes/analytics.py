@@ -1,8 +1,11 @@
+import csv
+import io
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 
 from app.db import get_pool
 from app.middleware.auth import verify_jwt
@@ -117,3 +120,83 @@ async def get_summary(
         risk=RiskMetrics(**risk),
         date_range={"start": start.isoformat(), "end": end.isoformat()},
     )
+
+
+@router.get("/histogram")
+async def get_histogram(
+    start_date: str = Query(..., description="Start date (ISO 8601)"),
+    end_date: str = Query(..., description="End date (ISO 8601)"),
+    strategy_id: Optional[str] = Query(None),
+    market_id: Optional[str] = Query(None),
+    bins: int = Query(20, ge=5, le=100, description="Number of histogram bins"),
+    _user: dict = Depends(verify_jwt),
+):
+    """Return raw PnL values for frontend histogram binning."""
+    start = _parse_date(start_date, "start_date")
+    end = _parse_date(end_date, "end_date")
+    if start >= end:
+        raise HTTPException(status_code=400, detail="start_date must be before end_date")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id)
+
+    pnls = [float(t["pnl"]) for t in trades]
+    return {"pnls": pnls, "count": len(pnls), "bins": bins}
+
+
+@router.get("/export")
+async def export_trades(
+    start_date: str = Query(..., description="Start date (ISO 8601)"),
+    end_date: str = Query(..., description="End date (ISO 8601)"),
+    strategy_id: Optional[str] = Query(None),
+    market_id: Optional[str] = Query(None),
+    _user: dict = Depends(verify_jwt),
+):
+    """Stream trades as CSV download."""
+    start = _parse_date(start_date, "start_date")
+    end = _parse_date(end_date, "end_date")
+    if start >= end:
+        raise HTTPException(status_code=400, detail="start_date must be before end_date")
+
+    pool = await get_pool()
+
+    async def generate():
+        header = "timestamp,market_id,market_slug,strategy_id,side,price,quantity,filled_quantity,pnl,fee,slippage_pct,fill_status,latency_ms\n"
+        yield header
+
+        async with pool.acquire() as conn:
+            trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id)
+            for t in trades:
+                ts = t["fill_timestamp"].isoformat() if t.get("fill_timestamp") else ""
+                row = ",".join([
+                    _csv_escape(str(ts)),
+                    _csv_escape(str(t.get("market_id", ""))),
+                    _csv_escape(str(t.get("market_slug", ""))),
+                    _csv_escape(str(t.get("strategy_id", ""))),
+                    _csv_escape(str(t.get("side", ""))),
+                    str(t.get("price", "")),
+                    str(t.get("quantity", "")),
+                    str(t.get("filled_quantity", "")),
+                    str(t.get("pnl", "")),
+                    str(t.get("fee", "")),
+                    str(t.get("slippage_pct", "")),
+                    _csv_escape(str(t.get("fill_status", ""))),
+                    str(t.get("latency_ms", "")),
+                ])
+                yield row + "\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=trades_export.csv"},
+    )
+
+
+def _csv_escape(value: str) -> str:
+    """Escape CSV field: wrap in quotes if contains comma, quote, or newline."""
+    if not value or value == "None":
+        return ""
+    if "," in value or '"' in value or "\n" in value:
+        return '"' + value.replace('"', '""') + '"'
+    return value

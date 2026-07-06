@@ -165,3 +165,29 @@ export async function fetchOpportunities(cursor?: string, pageSize = 50, status?
   const qs = params.toString();
   return request<OpportunityListResponse>(`/api/opportunities${qs ? `?${qs}` : ""}`);
 }
+
+// Analytics API
+export async function fetchAnalyticsPnL(startDate: string, endDate: string, groupBy = "day"): Promise<import("@/types").PnLData> {
+  return request<import("@/types").PnLData>(`/api/analytics/pnl?start_date=${startDate}&end_date=${endDate}&group_by=${groupBy}`);
+}
+
+export async function fetchAnalyticsHistogram(startDate: string, endDate: string, bins = 20): Promise<import("@/types").HistogramData> {
+  return request<import("@/types").HistogramData>(`/api/analytics/histogram?start_date=${startDate}&end_date=${endDate}&bins=${bins}`);
+}
+
+export async function downloadCSV(startDate: string, endDate: string): Promise<void> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/api/analytics/export?start_date=${startDate}&end_date=${endDate}`, { headers, credentials: "include" });
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trades_${startDate}_${endDate}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
