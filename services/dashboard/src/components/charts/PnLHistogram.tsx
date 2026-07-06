@@ -16,8 +16,13 @@ interface PnLHistogramProps {
 function buildHistogram(pnls: number[], binCount: number): HistogramBin[] {
   if (pnls.length === 0) return [];
 
-  const min = Math.min(...pnls);
-  const max = Math.max(...pnls);
+  // #2: Avoid Math.min/max spread on large arrays — use loop
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of pnls) {
+    if (p < min) min = p;
+    if (p > max) max = p;
+  }
   const range = max - min || 1;
   const binWidth = range / binCount;
 

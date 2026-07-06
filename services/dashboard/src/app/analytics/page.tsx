@@ -14,14 +14,18 @@ export default function AnalyticsPage() {
     return d.toISOString().split("T")[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [exporting, setExporting] = useState(false);
 
   const { pnlData, histogramData, loading, error } = useAnalytics(startDate, endDate);
 
   const handleExport = async () => {
+    setExporting(true);
     try {
       await downloadCSV(startDate, endDate);
     } catch (err) {
       console.error("Export failed:", err);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -45,9 +49,10 @@ export default function AnalyticsPage() {
           />
           <button
             onClick={handleExport}
-            className="px-4 py-2 rounded-lg bg-[#00d4ff] text-black font-medium text-sm hover:bg-[#00d4ff]/80 transition-colors"
+            disabled={exporting}
+            className="px-4 py-2 rounded-lg bg-[#00d4ff] text-black font-medium text-sm hover:bg-[#00d4ff]/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Export CSV
+            {exporting ? "Exporting..." : "Export CSV"}
           </button>
         </div>
       </div>

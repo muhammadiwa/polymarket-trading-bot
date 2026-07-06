@@ -46,7 +46,7 @@ async def get_trades_in_range(
 
     where = " AND ".join(conditions)
     rows = await conn.fetch(
-        f"SELECT pnl, strategy_id, market_id, market_slug, fill_timestamp, side, quantity, price FROM trades WHERE {where} ORDER BY fill_timestamp",
+        f"SELECT pnl, strategy_id, market_id, market_slug, fill_timestamp, side, quantity, price, filled_quantity, fee, slippage_pct, fill_status, latency_ms FROM trades WHERE {where} ORDER BY fill_timestamp",
         *params,
     )
     return [dict(r) for r in rows]

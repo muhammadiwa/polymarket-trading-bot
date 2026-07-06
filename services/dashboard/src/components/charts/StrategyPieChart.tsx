@@ -24,12 +24,15 @@ export function StrategyPieChart({ data, loading }: StrategyPieChartProps) {
     return <div className="h-64 flex items-center justify-center text-gray-400">No data</div>;
   }
 
-  const chartData = data.map((d) => ({
-    name: d.strategy_id,
-    value: Math.abs(parseFloat(d.total_pnl)),
-    pnl: parseFloat(d.total_pnl),
-    trades: d.trade_count,
-  }));
+  const chartData = data
+    .filter((d) => parseFloat(d.total_pnl) !== 0) // #4: Filter out zero-PnL strategies
+    .map((d) => ({
+      name: d.strategy_id,
+      value: Math.abs(parseFloat(d.total_pnl)),
+      pnl: parseFloat(d.total_pnl),
+      trades: d.trade_count,
+      isNegative: parseFloat(d.total_pnl) < 0,
+    }));
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-md p-5">
