@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 
 from app.db import get_pool
 from app.middleware.auth import verify_jwt
-from app.models.analytics import AnalyticsSummary, PnLResponse, PerformanceMetrics, RiskMetrics
+from app.models.analytics import AnalyticsSummary, AnomalyEvent, PnLResponse, PerformanceMetrics, RiskMetrics
 from app.repos import analytics_repo
 
 logger = logging.getLogger(__name__)
@@ -200,3 +200,16 @@ def _csv_escape(value: str) -> str:
     if "," in value or '"' in value or "\n" in value:
         return '"' + value.replace('"', '""') + '"'
     return value
+
+
+@router.get("/anomalies", response_model=list[AnomalyEvent])
+async def get_anomalies(
+    severity: Optional[str] = Query(None, pattern="^(low|medium|high|critical)$"),
+    limit: int = Query(50, ge=1, le=200),
+    _user: dict = Depends(verify_jwt),
+):
+    """Get recent anomaly events."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        anomalies = await analytics_repo.get_anomalies(conn, limit, severity)
+    return [AnomalyEvent(**a) for a in anomalies]

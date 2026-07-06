@@ -55,3 +55,16 @@ class AnalyticsSummary(BaseModel):
     performance: PerformanceMetrics
     risk: RiskMetrics
     date_range: dict
+
+
+class AnomalyEvent(BaseModel):
+    id: str
+    anomaly_type: str
+    metric_name: str
+    threshold_value: str
+    actual_value: str
+    severity: str
+    confidence: str
+    context: Optional[dict] = None
+    detected_at: datetime
+    acknowledged_at: Optional[datetime] = None

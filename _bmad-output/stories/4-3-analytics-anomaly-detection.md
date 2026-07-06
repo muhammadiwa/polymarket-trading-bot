@@ -156,8 +156,23 @@ pqap_anomaly_alerts_sent_total   # Counter — alerts sent
 
 ### Agent Model Used
 
-### Debug Log References
+mimo-v2.5-pro
 
 ### Completion Notes List
 
+- Task 1: Anomaly detection logic added to existing analytics_repo.py
+- Task 2: Config thresholds added to config.py, migration 014 created
+- Task 3: GET /api/analytics/anomalies endpoint added to existing routes
+- Task 4: Background anomaly check loop in main.py lifespan
+
 ### File List
+
+**New files:**
+- `migrations/postgres/014_create_anomaly_events.up/down.sql`
+
+**Modified files:**
+- `services/analytics/app/repos/analytics_repo.py` — added detect_anomalies, log_anomaly, get_anomalies
+- `services/analytics/app/routes/analytics.py` — added GET /anomalies endpoint
+- `services/analytics/app/config.py` — added anomaly threshold configs
+- `services/analytics/app/main.py` — added background anomaly check loop
+- `services/analytics/app/models/analytics.py` — added AnomalyEvent model

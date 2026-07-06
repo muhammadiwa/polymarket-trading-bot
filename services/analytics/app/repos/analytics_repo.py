@@ -240,3 +240,150 @@ async def calculate_risk_metrics(
         "peak_equity": str(peak.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)),
         "current_equity": str(cumulative.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)),
     }
+
+
+# --- Anomaly Detection (Story 4.3) ---
+
+async def detect_anomalies(
+    conn: asyncpg.Connection,
+    thresholds: dict,
+) -> list[dict]:
+    """Detect performance anomalies by comparing current metrics against 7-day baseline."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    day_ago = now - timedelta(days=1)
+    week_ago = now - timedelta(days=7)
+
+    anomalies = []
+
+    # Get current (last 24h) and baseline (7-day) metrics
+    current_perf = await calculate_performance_metrics(conn, day_ago, now)
+    baseline_perf = await calculate_performance_metrics(conn, week_ago, now)
+    current_risk = await calculate_risk_metrics(conn, day_ago, now)
+    baseline_risk = await calculate_risk_metrics(conn, week_ago, now)
+
+    # Rule 1: Win rate drop
+    current_wr = Decimal(current_perf["win_rate"]) if current_perf["win_rate"] else ZERO
+    baseline_wr = Decimal(baseline_perf["win_rate"]) if baseline_perf["win_rate"] else ZERO
+    wr_drop = baseline_wr - current_wr
+    if baseline_wr > Decimal("0.1") and wr_drop > Decimal(str(thresholds.get("win_rate_drop", 0.20))):
+        anomalies.append({
+            "anomaly_type": "win_rate_drop",
+            "metric_name": "win_rate",
+            "threshold_value": str(baseline_wr - Decimal(str(thresholds.get("win_rate_drop", 0.20)))),
+            "actual_value": str(current_wr),
+            "severity": "high",
+            "confidence": "0.9",
+            "context": {"baseline_7d": str(baseline_wr), "current_1d": str(current_wr), "drop": str(wr_drop)},
+        })
+
+    # Rule 2: Unusual drawdown
+    current_dd = Decimal(current_risk["current_drawdown"]) if current_risk["current_drawdown"] else ZERO
+    baseline_dd = Decimal(baseline_risk["max_drawdown"]) if baseline_risk["max_drawdown"] else ZERO
+    dd_multiplier = Decimal(str(thresholds.get("drawdown_multiplier", 2.0)))
+    if baseline_dd > Decimal("0.01") and current_dd > baseline_dd * dd_multiplier:
+        anomalies.append({
+            "anomaly_type": "unusual_drawdown",
+            "metric_name": "current_drawdown",
+            "threshold_value": str(baseline_dd * dd_multiplier),
+            "actual_value": str(current_dd),
+            "severity": "critical",
+            "confidence": "0.85",
+            "context": {"baseline_max_dd": str(baseline_dd), "current_dd": str(current_dd)},
+        })
+
+    # Rule 3: Consecutive losses
+    recent_trades = await get_trades_in_range(conn, day_ago, now)
+    max_consecutive = thresholds.get("consecutive_losses", 5)
+    consecutive = 0
+    max_seen = 0
+    for t in recent_trades:
+        if Decimal(str(t["pnl"])) < ZERO:
+            consecutive += 1
+            if consecutive > max_seen:
+                max_seen = consecutive
+        else:
+            consecutive = 0
+    if max_seen >= max_consecutive:
+        anomalies.append({
+            "anomaly_type": "consecutive_losses",
+            "metric_name": "consecutive_loss_streak",
+            "threshold_value": str(max_consecutive),
+            "actual_value": str(max_seen),
+            "severity": "medium",
+            "confidence": "1.0",
+            "context": {"streak_length": max_seen},
+        })
+
+    # Rule 4: Profit factor drop
+    current_pf = Decimal(current_perf["profit_factor"]) if current_perf.get("profit_factor") else None
+    baseline_pf = Decimal(baseline_perf["profit_factor"]) if baseline_perf.get("profit_factor") else None
+    pf_low = Decimal(str(thresholds.get("profit_factor_low", 0.5)))
+    if current_pf is not None and baseline_pf is not None and baseline_pf > Decimal("1.5") and current_pf < pf_low:
+        anomalies.append({
+            "anomaly_type": "profit_factor_drop",
+            "metric_name": "profit_factor",
+            "threshold_value": str(pf_low),
+            "actual_value": str(current_pf),
+            "severity": "high",
+            "confidence": "0.85",
+            "context": {"baseline_7d": str(baseline_pf), "current_1d": str(current_pf)},
+        })
+
+    # Rule 5: Sharpe ratio drop
+    current_sharpe = Decimal(current_perf["sharpe_ratio"]) if current_perf["sharpe_ratio"] else ZERO
+    baseline_sharpe = Decimal(baseline_perf["sharpe_ratio"]) if baseline_perf["sharpe_ratio"] else ZERO
+    sharpe_low = Decimal(str(thresholds.get("sharpe_low", 0)))
+    if baseline_sharpe > Decimal("1.0") and current_sharpe < sharpe_low:
+        anomalies.append({
+            "anomaly_type": "sharpe_drop",
+            "metric_name": "sharpe_ratio",
+            "threshold_value": str(sharpe_low),
+            "actual_value": str(current_sharpe),
+            "severity": "medium",
+            "confidence": "0.8",
+            "context": {"baseline_7d": str(baseline_sharpe), "current_1d": str(current_sharpe)},
+        })
+
+    return anomalies
+
+
+async def log_anomaly(conn: asyncpg.Connection, anomaly: dict) -> str:
+    """Log anomaly to PostgreSQL."""
+    row = await conn.fetchrow(
+        """
+        INSERT INTO anomaly_events (anomaly_type, metric_name, threshold_value, actual_value, severity, confidence, context)
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+        RETURNING id
+        """,
+        anomaly["anomaly_type"],
+        anomaly["metric_name"],
+        Decimal(anomaly["threshold_value"]),
+        Decimal(anomaly["actual_value"]),
+        anomaly["severity"],
+        Decimal(anomaly.get("confidence", "0.9")),
+        json.dumps(anomaly.get("context", {})),
+    )
+    return str(row["id"])
+
+
+async def get_anomalies(
+    conn: asyncpg.Connection,
+    limit: int = 50,
+    severity: Optional[str] = None,
+) -> list[dict]:
+    """Get recent anomalies."""
+    conditions = []
+    params = []
+    idx = 1
+    if severity:
+        conditions.append(f"severity = ${idx}")
+        params.append(severity)
+        idx += 1
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    rows = await conn.fetch(
+        f"SELECT * FROM anomaly_events {where} ORDER BY detected_at DESC LIMIT ${idx}",
+        *params, limit,
+    )
+    return [dict(r) for r in rows]
