@@ -352,7 +352,7 @@ async def detect_anomalies(
     return anomalies
 
 
-async def log_anomaly(conn: asyncpg.Connection, anomaly: dict) -> str:
+async def log_anomaly(conn: asyncpg.Connection, anomaly: dict) -> Optional[str]:
     """Log anomaly to PostgreSQL. Returns ID if new, None if duplicate."""
     # #5: Suppress duplicates — check if same anomaly_type was logged in last 24h
     from datetime import timedelta
@@ -362,7 +362,7 @@ async def log_anomaly(conn: asyncpg.Connection, anomaly: dict) -> str:
         anomaly["anomaly_type"], day_ago,
     )
     if existing:
-        return str(existing["id"])  # Already logged recently
+        return None  # Already logged recently — skip
 
     row = await conn.fetchrow(
         """

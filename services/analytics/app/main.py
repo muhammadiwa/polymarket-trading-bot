@@ -84,7 +84,10 @@ async def lifespan(app: FastAPI):
     # Start background anomaly checker
     task = asyncio.create_task(anomaly_check_loop())
     # #6: Add exception callback so task failures are logged
-    task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+    def _on_task_done(t):
+        if not t.cancelled() and t.exception():
+            logger.error("anomaly check task died", exc_info=t.exception())
+    task.add_done_callback(_on_task_done)
     logger.info("analytics service started")
     yield
     task.cancel()
