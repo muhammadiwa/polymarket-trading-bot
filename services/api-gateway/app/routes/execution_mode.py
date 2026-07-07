@@ -68,7 +68,15 @@ async def set_execution_mode(
     """Set execution mode (admin only)."""
     require_admin(user)
 
+    # Get current mode before switching
+    current_mode = await _get_mode_from_redis()
+
     await _set_mode_in_redis(body.mode)
     logger.info("execution mode changed", extra={"mode": body.mode, "user": user.get("username")})
+
+    # #11: If switching from PAPER to LIVE, log warning about open paper positions
+    if current_mode == "PAPER" and body.mode == "LIVE":
+        logger.warning("switching from PAPER to LIVE — open paper positions may exist")
+        # In production: auto-close paper positions or warn user
 
     return ExecutionModeResponse(mode=body.mode, message=f"Execution mode set to {body.mode}")

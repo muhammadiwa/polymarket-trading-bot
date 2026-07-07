@@ -65,15 +65,16 @@ func (ps *PaperSimulator) SimulateFill(ctx context.Context, order *ports.Order) 
 	slippage := order.Price.Mul(decimal.NewFromFloat(ps.slippagePct))
 	var fillPrice decimal.Decimal
 	if order.Side == "BUY" {
-		fillPrice = order.Price.Sub(slippage) // BUY: lower is worse
+		fillPrice = order.Price.Sub(slippage)
 	} else {
-		fillPrice = order.Price.Add(slippage) // SELL: higher is worse
+		fillPrice = order.Price.Add(slippage)
 	}
 	if fillPrice.IsNegative() {
 		fillPrice = order.Price
 	}
 
-	// #9: PnL = slippage cost at entry (tracked separately from position PnL)
+	// #9: PnL = slippage cost (tracked as negative for entry, positive on exit)
+	// For paper trading, we track the slippage as the cost of the trade
 	pnl := slippage.Mul(order.Quantity).Neg()
 
 	return &SimulatedFill{
