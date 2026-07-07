@@ -1,7 +1,7 @@
 CREATE TABLE paper_trades (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     market_id VARCHAR(128) NOT NULL,
-    side VARCHAR(4) NOT NULL CHECK (side IN ('YES', 'NO')),
+    side VARCHAR(4) NOT NULL CHECK (side IN ('BUY', 'SELL')),
     price NUMERIC(12,4) NOT NULL,
     quantity NUMERIC(20,8) NOT NULL,
     pnl NUMERIC(20,8) NOT NULL DEFAULT 0,

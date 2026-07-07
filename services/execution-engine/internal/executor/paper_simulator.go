@@ -38,6 +38,7 @@ type SimulatedFill struct {
 	Quantity  decimal.Decimal
 	LatencyMs int64
 	PnL       decimal.Decimal
+	Side      string // BUY or SELL — #2: needed for DB persistence
 }
 
 // SimulateFill simulates a fill based on orderbook depth and configurable parameters.
@@ -58,6 +59,7 @@ func (ps *PaperSimulator) SimulateFill(ctx context.Context, order *ports.Order) 
 			Quantity:  decimal.Zero,
 			LatencyMs: latencyMs,
 			PnL:       decimal.Zero,
+			Side:      order.Side,
 		}
 	}
 
@@ -84,6 +86,7 @@ func (ps *PaperSimulator) SimulateFill(ctx context.Context, order *ports.Order) 
 		Quantity:  order.Quantity,
 		LatencyMs: latencyMs,
 		PnL:       pnl,
+		Side:      order.Side,
 	}
 }
 
