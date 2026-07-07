@@ -228,8 +228,27 @@ TimescaleDB (opportunities) → Backtesting Engine → Strategy Logic (replicate
 
 ### Agent Model Used
 
-### Debug Log References
+mimo-v2.5-pro
 
 ### Completion Notes List
 
+- Task 1: Backtesting service setup (config, db, auth, main)
+- Task 2: Market data replay from TimescaleDB opportunities table
+- Task 3: Execution simulation (slippage, partial fills, latency, RNG seed)
+- Task 4: Lookahead bias detection framework
+- Task 5: API endpoints (POST /run, GET /status, GET /results)
+
 ### File List
+
+**New files:**
+- `services/backtesting/app/main.py`
+- `services/backtesting/app/config.py`
+- `services/backtesting/app/db.py`
+- `services/backtesting/app/middleware/auth.py`
+- `services/backtesting/app/models/backtest.py`
+- `services/backtesting/app/engine/backtest_engine.py`
+- `services/backtesting/app/repos/backtest_repo.py`
+- `services/backtesting/app/routes/backtest.py`
+- `services/backtesting/requirements.txt`
+- `services/backtesting/Dockerfile`
+- `migrations/postgres/015_create_backtest_runs.up/down.sql`
