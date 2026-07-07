@@ -72,7 +72,7 @@ development_status:
   4-3-analytics-anomaly-detection: review
   4-4-trade-history-filtering-export: review
   4-5-orderbook-viewer-real-time-display-depth-chart: review
-  epic-4-retrospective: optional
+  epic-4-retrospective: done
 
   # Epic 5: Backtesting & Paper Trading
   epic-5: backlog
