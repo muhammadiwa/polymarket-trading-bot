@@ -175,7 +175,7 @@ export async function fetchAnalyticsHistogram(startDate: string, endDate: string
   return request<import("@/types").HistogramData>(`/api/analytics/histogram?start_date=${startDate}&end_date=${endDate}&bins=${bins}`);
 }
 
-export async function downloadCSV(startDate: string, endDate: string, side?: string, pnlSign?: string): Promise<void> {
+export async function downloadCSV(startDate: string, endDate: string, side?: string, pnlSign?: string, strategyId?: string, marketId?: string): Promise<void> {
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -183,6 +183,8 @@ export async function downloadCSV(startDate: string, endDate: string, side?: str
   const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
   if (side) params.set("side", side);
   if (pnlSign) params.set("pnl_sign", pnlSign);
+  if (strategyId) params.set("strategy_id", strategyId);
+  if (marketId) params.set("market_id", marketId);
 
   const res = await fetch(`${API_BASE}/api/analytics/export?${params.toString()}`, { headers, credentials: "include" });
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);
@@ -196,7 +198,7 @@ export async function downloadCSV(startDate: string, endDate: string, side?: str
   URL.revokeObjectURL(url);
 }
 
-export async function downloadJSON(startDate: string, endDate: string, side?: string, pnlSign?: string): Promise<void> {
+export async function downloadJSON(startDate: string, endDate: string, side?: string, pnlSign?: string, strategyId?: string, marketId?: string): Promise<void> {
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -204,6 +206,8 @@ export async function downloadJSON(startDate: string, endDate: string, side?: st
   const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
   if (side) params.set("side", side);
   if (pnlSign) params.set("pnl_sign", pnlSign);
+  if (strategyId) params.set("strategy_id", strategyId);
+  if (marketId) params.set("market_id", marketId);
 
   const res = await fetch(`${API_BASE}/api/analytics/export/json?${params.toString()}`, { headers, credentials: "include" });
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);

@@ -2,6 +2,7 @@ import csv
 import io
 import logging
 from datetime import datetime, timezone
+from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -161,6 +162,10 @@ async def export_trades(
     if start >= end:
         raise HTTPException(status_code=400, detail="start_date must be before end_date")
 
+    # Cap date range at 365 days to prevent memory exhaustion
+    if (end - start) > timedelta(days=365):
+        raise HTTPException(status_code=400, detail="Date range cannot exceed 365 days")
+
     pool = await get_pool()
 
     async def generate():
@@ -172,19 +177,19 @@ async def export_trades(
             for t in trades:
                 ts = t["fill_timestamp"].isoformat() if t.get("fill_timestamp") else ""
                 row = ",".join([
-                    _csv_escape(str(ts)),
-                    _csv_escape(str(t.get("market_id", ""))),
-                    _csv_escape(str(t.get("market_slug", ""))),
-                    _csv_escape(str(t.get("strategy_id", ""))),
-                    _csv_escape(str(t.get("side", ""))),
-                    str(t.get("price", "")),
-                    str(t.get("quantity", "")),
-                    str(t.get("filled_quantity", "")),
-                    str(t.get("pnl", "")),
-                    str(t.get("fee", "")),
-                    str(t.get("slippage_pct", "")),
-                    _csv_escape(str(t.get("fill_status", ""))),
-                    str(t.get("latency_ms", "")),
+                    _csv_escape(_safe_str(ts)),
+                    _csv_escape(_safe_str(t.get("market_id"))),
+                    _csv_escape(_safe_str(t.get("market_slug"))),
+                    _csv_escape(_safe_str(t.get("strategy_id"))),
+                    _csv_escape(_safe_str(t.get("side"))),
+                    _safe_str(t.get("price")),
+                    _safe_str(t.get("quantity")),
+                    _safe_str(t.get("filled_quantity")),
+                    _safe_str(t.get("pnl")),
+                    _safe_str(t.get("fee")),
+                    _safe_str(t.get("slippage_pct")),
+                    _csv_escape(_safe_str(t.get("fill_status"))),
+                    _safe_str(t.get("latency_ms")),
                 ])
                 yield row + "\n"
 
@@ -211,6 +216,10 @@ async def export_trades_json(
     if start >= end:
         raise HTTPException(status_code=400, detail="start_date must be before end_date")
 
+    # Cap date range at 365 days to prevent memory exhaustion
+    if (end - start) > timedelta(days=365):
+        raise HTTPException(status_code=400, detail="Date range cannot exceed 365 days")
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id, side, pnl_sign)
@@ -223,12 +232,12 @@ async def export_trades_json(
             "market_slug": t.get("market_slug"),
             "strategy_id": t.get("strategy_id"),
             "side": t.get("side"),
-            "price": str(t.get("price", "")),
-            "quantity": str(t.get("quantity", "")),
-            "filled_quantity": str(t.get("filled_quantity", "")),
-            "pnl": str(t.get("pnl", "")),
-            "fee": str(t.get("fee", "")),
-            "slippage_pct": str(t.get("slippage_pct", "")),
+            "price": _safe_str(t.get("price")),
+            "quantity": _safe_str(t.get("quantity")),
+            "filled_quantity": _safe_str(t.get("filled_quantity")),
+            "pnl": _safe_str(t.get("pnl")),
+            "fee": _safe_str(t.get("fee")),
+            "slippage_pct": _safe_str(t.get("slippage_pct")),
             "fill_status": t.get("fill_status"),
             "latency_ms": t.get("latency_ms"),
         })
@@ -237,12 +246,21 @@ async def export_trades_json(
 
 
 def _csv_escape(value: str) -> str:
-    """Escape CSV field: wrap in quotes if contains comma, quote, or newline."""
-    if not value or value == "None":
+    """Escape CSV field: wrap in quotes if contains comma, quote, newline, or carriage return."""
+    if value is None:
         return ""
-    if "," in value or '"' in value or "\n" in value:
+    if not value:
+        return ""
+    if "," in value or '"' in value or "\n" in value or "\r" in value:
         return '"' + value.replace('"', '""') + '"'
     return value
+
+
+def _safe_str(val) -> str:
+    """Convert value to string, handling None."""
+    if val is None:
+        return ""
+    return str(val)
 
 
 @router.get("/anomalies", response_model=list[AnomalyEvent])

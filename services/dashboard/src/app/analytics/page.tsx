@@ -16,6 +16,8 @@ export default function AnalyticsPage() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [side, setSide] = useState<string>("all");
   const [pnlSign, setPnlSign] = useState<string>("all");
+  const [strategyId, setStrategyId] = useState<string>("");
+  const [marketId, setMarketId] = useState<string>("");
   const [exporting, setExporting] = useState(false);
 
   const { pnlData, histogramData, loading, error } = useAnalytics(startDate, endDate);
@@ -23,7 +25,7 @@ export default function AnalyticsPage() {
   const handleExportCSV = async () => {
     setExporting(true);
     try {
-      await downloadCSV(startDate, endDate, side === "all" ? undefined : side, pnlSign === "all" ? undefined : pnlSign);
+      await downloadCSV(startDate, endDate, side === "all" ? undefined : side, pnlSign === "all" ? undefined : pnlSign, strategyId || undefined, marketId || undefined);
     } catch (err) {
       console.error("Export failed:", err);
     } finally {
@@ -34,7 +36,7 @@ export default function AnalyticsPage() {
   const handleExportJSON = async () => {
     setExporting(true);
     try {
-      await downloadJSON(startDate, endDate, side === "all" ? undefined : side, pnlSign === "all" ? undefined : pnlSign);
+      await downloadJSON(startDate, endDate, side === "all" ? undefined : side, pnlSign === "all" ? undefined : pnlSign, strategyId || undefined, marketId || undefined);
     } catch (err) {
       console.error("Export failed:", err);
     } finally {
@@ -79,6 +81,20 @@ export default function AnalyticsPage() {
             <option value="negative">Losing</option>
             <option value="zero">Break-even</option>
           </select>
+          <input
+            type="text"
+            placeholder="Strategy ID"
+            value={strategyId}
+            onChange={(e) => setStrategyId(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm w-32"
+          />
+          <input
+            type="text"
+            placeholder="Market ID"
+            value={marketId}
+            onChange={(e) => setMarketId(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm w-32"
+          />
           <button
             onClick={handleExportCSV}
             disabled={exporting}
