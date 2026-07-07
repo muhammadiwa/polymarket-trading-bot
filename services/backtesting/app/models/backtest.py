@@ -14,8 +14,8 @@ class SimulationConfig(BaseModel):
 
 class BacktestRequest(BaseModel):
     strategy_id: str = Field(min_length=1, max_length=64)
-    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")  # #18: Validate date format
-    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")    # #18: Validate date format
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")
     simulation: SimulationConfig = SimulationConfig()
 
 
@@ -46,9 +46,50 @@ class BacktestSummary(BaseModel):
     sharpe_ratio: str
     max_drawdown: str
     profit_factor: Optional[str]
+    var_95: Optional[str] = None  # #1: Added VaR
 
 
 class BacktestResults(BaseModel):
     summary: BacktestSummary
     trades: list[BacktestTrade]
     warnings: list[dict]
+    daily_pnl: Optional[list[dict]] = None  # #1: Daily PnL breakdown
+
+
+class BacktestReport(BaseModel):
+    """#2: Full report with curves and breakdown."""
+    run_id: str
+    summary: BacktestSummary
+    pnl_curve: list[dict]  # [{date, cumulative_pnl}]
+    drawdown_curve: list[dict]  # [{date, drawdown}]
+    trades: list[BacktestTrade]
+    warnings: list[dict]
+
+
+class SweepParameter(BaseModel):
+    """#3: Parameter sweep configuration."""
+    name: str  # e.g., "slippage_pct"
+    min_value: float
+    max_value: float
+    step: float
+
+
+class SweepRequest(BaseModel):
+    """#3: Request for parameter sweep."""
+    strategy_id: str
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")
+    parameters: list[SweepParameter]
+    rank_by: str = Field(default="sharpe_ratio", pattern="^(sharpe_ratio|total_pnl|win_rate|max_drawdown)$")
+    simulation: SimulationConfig = SimulationConfig()
+
+
+class SweepResult(BaseModel):
+    parameters: dict
+    summary: BacktestSummary
+
+
+class SweepResults(BaseModel):
+    results: list[SweepResult]
+    best: Optional[SweepResult] = None
+    total_configs: int

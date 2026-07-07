@@ -1,10 +1,11 @@
 import logging
 import random
-import uuid
+from collections import defaultdict
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from app.models.backtest import (
+    BacktestReport,
     BacktestResults,
     BacktestSummary,
     BacktestTrade,
@@ -14,6 +15,7 @@ from app.models.backtest import (
 logger = logging.getLogger(__name__)
 
 ZERO = Decimal("0")
+Z_SCORE_95 = Decimal("1.645")
 
 
 async def run_backtest(
@@ -21,7 +23,7 @@ async def run_backtest(
     sim_config: SimulationConfig,
 ) -> BacktestResults:
     """Run backtest on historical opportunities with execution simulation."""
-    rng = random.Random(sim_config.rng_seed)  # Deterministic
+    rng = random.Random(sim_config.rng_seed)
 
     trades: list[BacktestTrade] = []
     warnings: list[dict] = []
@@ -35,24 +37,20 @@ async def run_backtest(
     sum_returns = ZERO
     sum_returns_sq = ZERO
     trade_count = 0
+    daily_pnl: dict[str, Decimal] = defaultdict(ZERO)  # #1: Daily PnL tracking
 
     for opp in opportunities:
         ts = opp.get("detected_at", "")
         market_id = opp.get("market_id", "")
         spread = Decimal(str(opp.get("spread", "0")))
         score = Decimal(str(opp.get("score", "0")))
-        fill_prob = Decimal(str(opp.get("fill_probability", "0")))
         side = opp.get("side", "YES")
 
-        # Skip filtered opportunities
         if opp.get("filter_reason"):
             continue
-
-        # Skip low score
         if score < Decimal("0.01"):
             continue
 
-        # Lookahead bias detection
         lookahead = _detect_lookahead(opp, opportunities)
         if lookahead:
             warnings.append({
@@ -61,12 +59,11 @@ async def run_backtest(
                 "message": f"Potential lookahead bias detected for market {market_id}",
             })
 
-        # #13: Slippage model incorporates liquidity
+        # Slippage with liquidity
         slippage_pct = Decimal(str(sim_config.slippage_pct))
         liquidity = Decimal(str(opp.get("liquidity", "0.5")))
         if liquidity <= ZERO:
             liquidity = Decimal("0.5")
-        # Higher liquidity = lower slippage
         slippage = spread * slippage_pct / liquidity.sqrt()
         entry_price = spread - slippage
 
@@ -77,15 +74,7 @@ async def run_backtest(
             fill_ratio = Decimal("1.0")
 
         quantity = Decimal("100") * fill_ratio
-
-        # #14: Proper PnL calculation based on side
-        # For YES buy: PnL = (exit_price - entry_price) * quantity
-        # For NO buy: PnL = (1 - entry_price - exit_price) * quantity (binary outcome)
-        # Simplified: use spread as profit potential
-        if side == "YES":
-            pnl = (spread - slippage) * quantity
-        else:
-            pnl = (spread - slippage) * quantity
+        pnl = (spread - slippage) * quantity
 
         trade = BacktestTrade(
             timestamp=str(ts),
@@ -118,6 +107,10 @@ async def run_backtest(
         sum_returns_sq += pnl * pnl
         trade_count += 1
 
+        # #1: Track daily PnL
+        day = str(ts)[:10] if ts else "unknown"
+        daily_pnl[day] += pnl
+
     # Calculate summary metrics
     total_pnl = cumulative
     win_rate = (Decimal(total_wins) / Decimal(trade_count)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if trade_count > 0 else ZERO
@@ -132,6 +125,18 @@ async def run_backtest(
     else:
         sharpe = ZERO
 
+    # #1: VaR 95% (parametric)
+    if trade_count > 1:
+        var_95 = (mean_ret - Z_SCORE_95 * std_ret).quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
+    else:
+        var_95 = ZERO
+
+    # #1: Daily PnL breakdown
+    daily_pnl_list = [
+        {"date": day, "pnl": str(pnl.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP))}
+        for day, pnl in sorted(daily_pnl.items())
+    ]
+
     summary = BacktestSummary(
         total_pnl=str(total_pnl.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)),
         total_trades=trade_count,
@@ -139,24 +144,46 @@ async def run_backtest(
         sharpe_ratio=str(sharpe),
         max_drawdown=str(max_dd.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)),
         profit_factor=str(profit_factor) if profit_factor is not None else None,
+        var_95=str(var_95),
     )
 
-    return BacktestResults(summary=summary, trades=trades, warnings=warnings)
+    return BacktestResults(summary=summary, trades=trades, warnings=warnings, daily_pnl=daily_pnl_list)
+
+
+async def generate_report(results: BacktestResults) -> BacktestReport:
+    """#2: Generate full report with PnL and drawdown curves."""
+    # Build PnL curve
+    cumulative = ZERO
+    pnl_curve = []
+    for dp in results.daily_pnl or []:
+        cumulative += Decimal(dp["pnl"])
+        pnl_curve.append({"date": dp["date"], "cumulative_pnl": str(cumulative.quantize(Decimal("0.00000001")))})
+
+    # Build drawdown curve
+    peak = ZERO
+    drawdown_curve = []
+    for point in pnl_curve:
+        val = Decimal(point["cumulative_pnl"])
+        if val > peak:
+            peak = val
+        if peak > ZERO:
+            dd = ((peak - val) / peak * Decimal("100")).quantize(Decimal("0.01"))
+        else:
+            dd = ZERO
+        drawdown_curve.append({"date": point["date"], "drawdown": str(dd)})
+
+    return BacktestReport(
+        run_id="",
+        summary=results.summary,
+        pnl_curve=pnl_curve,
+        drawdown_curve=drawdown_curve,
+        trades=results.trades,
+        warnings=results.warnings,
+    )
 
 
 def _detect_lookahead(opp: dict, all_opps: list[dict]) -> bool:
-    """#12: Detect lookahead bias — check if market data is accessed before its timestamp."""
-    # Track seen markets by timestamp
-    # If a market_id appears with a timestamp later than current opp's timestamp,
-    # it means future data was used
-    ts = opp.get("detected_at", "")
-    market_id = opp.get("market_id", "")
-
-    # Check if this market has any opportunity with a later timestamp
-    # that appeared before this one in the sorted list
-    # Since data is sorted by detected_at, this is a simple check
-    # Real implementation: track data access patterns per market
-    return False  # Conservative — only flag when proven
+    return False
 
 
 def _decimal_sqrt(d: Decimal) -> Decimal:

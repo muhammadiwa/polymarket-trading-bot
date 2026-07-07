@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.db import get_pg_pool, get_ts_pool
 from app.engine.backtest_engine import run_backtest
 from app.middleware.auth import verify_jwt
-from app.models.backtest import BacktestRequest, BacktestResults, BacktestStatus
+from app.models.backtest import BacktestRequest, BacktestResults, BacktestStatus, SweepRequest
 from app.repos import backtest_repo
 
 logger = logging.getLogger(__name__)
@@ -117,3 +117,94 @@ async def get_results(run_id: str, _user: dict = Depends(verify_jwt)):
         raise HTTPException(status_code=400, detail=f"Backtest not completed (status: {run['status']})")
 
     return {"run_id": str(run["id"]), "status": run["status"], "results": run.get("results")}
+
+
+@router.get("/{run_id}/report")
+async def get_report(run_id: str, _user: dict = Depends(verify_jwt)):
+    """#2: Get full backtest report with PnL and drawdown curves."""
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        run = await backtest_repo.get_run(conn, run_id)
+
+    if run is None:
+        raise HTTPException(status_code=404, detail="Backtest run not found")
+    if run["status"] != "completed":
+        raise HTTPException(status_code=400, detail=f"Backtest not completed (status: {run['status']})")
+
+    results_data = run.get("results", {})
+    # Build report from stored results
+    from app.engine.backtest_engine import generate_report
+    from app.models.backtest import BacktestResults, BacktestSummary, BacktestTrade
+
+    summary = BacktestSummary(**results_data.get("summary", {}))
+    trades = [BacktestTrade(**t) for t in results_data.get("trades", [])]
+    results = BacktestResults(summary=summary, trades=trades, warnings=results_data.get("warnings", []), daily_pnl=results_data.get("daily_pnl"))
+
+    report = await generate_report(results)
+    report.run_id = run_id
+    return report
+
+
+@router.post("/sweep")
+async def run_sweep(body: SweepRequest, _user: dict = Depends(verify_jwt)):
+    """#3: Run parameter sweep — test multiple configurations in batch."""
+    import itertools
+
+    # Generate parameter combinations
+    param_ranges = {}
+    for p in body.parameters:
+        values = []
+        v = p.min_value
+        while v <= p.max_value + 0.0001:  # float tolerance
+            values.append(round(v, 10))
+            v += p.step
+        param_ranges[p.name] = values
+
+    if not param_ranges:
+        raise HTTPException(status_code=400, detail="No parameters provided")
+
+    # Generate all combinations
+    keys = list(param_ranges.keys())
+    combos = list(itertools.product(*[param_ranges[k] for k in keys]))
+
+    if len(combos) > 1000:
+        raise HTTPException(status_code=400, detail=f"Too many combinations ({len(combos)}). Max 1000.")
+
+    # Fetch opportunities once
+    pg_pool = await get_pg_pool()
+    ts_pool = await get_ts_pool()
+
+    async with ts_pool.acquire() as conn:
+        opportunities = await backtest_repo.get_opportunities(conn, body.start_date, body.end_date)
+
+    if not opportunities:
+        return {"results": [], "best": None, "total_configs": 0}
+
+    # Run all configurations
+    sweep_results = []
+    for combo in combos:
+        config_dict = dict(zip(keys, combo))
+        sim_config = body.simulation.model_copy(update=config_dict)
+        results = await run_backtest(opportunities, sim_config)
+        sweep_results.append({
+            "parameters": config_dict,
+            "summary": results.summary.model_dump(),
+        })
+
+    # Rank by selected metric
+    def sort_key(item):
+        val = item["summary"].get(body.rank_by)
+        if val is None or val == "null":
+            return float("-inf")
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return float("-inf")
+
+    sweep_results.sort(key=sort_key, reverse=True)
+
+    return {
+        "results": sweep_results,
+        "best": sweep_results[0] if sweep_results else None,
+        "total_configs": len(sweep_results),
+    }
