@@ -80,7 +80,7 @@ development_status:
   5-2-backtesting-metrics-reports-parameter-sweeps: review
   5-3-paper-trading-simulation-separate-pnl: review
   5-4-paper-trading-seamless-live-switch: review
-  5-5-replay-mode-speed-control-decision-display: backlog
+  5-5-replay-mode-speed-control-decision-display: ready-for-dev
   epic-5-retrospective: optional
 
   # Epic 6: AI Strategy Optimization
