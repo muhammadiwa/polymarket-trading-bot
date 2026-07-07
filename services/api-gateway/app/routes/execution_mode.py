@@ -1,12 +1,16 @@
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Literal
+from uuid import uuid4
 
+import nats
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.config import config
+from app.db import get_pool
 from app.middleware.auth import extract_user, require_admin
 
 logger = logging.getLogger(__name__)
@@ -31,6 +35,7 @@ class ExecutionModeResponse(BaseModel):
     mode: str
     message: str
     restart_required: bool = False
+    open_paper_positions: int = 0
 
 
 class RestartConfirmation(BaseModel):
@@ -60,6 +65,45 @@ async def _set_mode_in_redis(mode: str) -> None:
         raise
 
 
+async def _get_open_paper_positions_count() -> int:
+    """Query open paper positions count from database."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT COUNT(*) as cnt FROM paper_positions WHERE status = 'open'"
+            )
+            return row["cnt"] if row else 0
+    except Exception as e:
+        logger.warning("failed to query paper positions", exc_info=e)
+        return 0
+
+
+async def _publish_mode_switch_warning(from_mode: str, to_mode: str, open_count: int, username: str):
+    """Publish warning notification to NATS."""
+    try:
+        nc = await nats.connect(config.NATS_URL)
+        event = {
+            "event_id": str(uuid4()),
+            "event_type": "NotificationRequest",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "api-gateway",
+            "payload": {
+                "category": "risk",
+                "title": f"Mode Switch: {from_mode} → {to_mode}",
+                "message": f"Execution mode changed from {from_mode} to {to_mode}. {open_count} paper position(s) open. Restart required to take effect.",
+                "channel": "telegram",
+                "priority": "high",
+                "bypass_throttle": True,
+            },
+        }
+        await nc.publish("pqap.notification.request", json.dumps(event).encode())
+        await nc.close()
+        logger.info("mode switch warning published", extra={"from": from_mode, "to": to_mode})
+    except Exception as e:
+        logger.error("failed to publish mode switch warning", exc_info=e)
+
+
 @router.get("")
 async def get_execution_mode(user: dict = Depends(extract_user)):
     """Get current execution mode (LIVE or PAPER)."""
@@ -81,28 +125,28 @@ async def set_execution_mode(
 
     await _set_mode_in_redis(body.mode)
 
+    # Get open paper positions count
+    open_count = await _get_open_paper_positions_count()
+
     # Log mode change
     logger.info("execution mode changed",
         extra={
             "from_mode": current_mode,
             "to_mode": body.mode,
             "user": user.get("username"),
+            "open_paper_positions": open_count,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
-    # PAPER→LIVE: warn about open paper positions
+    # PAPER→LIVE: publish warning notification
     if current_mode == "PAPER" and body.mode == "LIVE":
-        logger.warning("PAPER→LIVE switch — restart required to take effect")
-        return ExecutionModeResponse(
-            mode=body.mode,
-            message="Mode set to LIVE. Restart required to take effect. Open paper positions will be preserved for reference.",
-            restart_required=True,
-        )
+        await _publish_mode_switch_warning(current_mode, body.mode, open_count, user.get("username", "unknown"))
 
     return ExecutionModeResponse(
         mode=body.mode,
         message=f"Mode set to {body.mode}. Restart required to take effect.",
         restart_required=True,
+        open_paper_positions=open_count,
     )
 
 
@@ -122,6 +166,6 @@ async def confirm_restart(
         extra={"mode": mode, "user": user.get("username")})
 
     return {
-        "message": f"Restart confirmed. System will restart in LIVE mode." if mode == "LIVE" else f"Restart confirmed. System will restart in PAPER mode.",
+        "message": f"Restart confirmed. System will restart in {mode} mode.",
         "mode": mode,
     }
