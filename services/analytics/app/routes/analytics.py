@@ -182,7 +182,7 @@ async def export_trades(
                     _csv_escape(_safe_str(t.get("market_slug"))),
                     _csv_escape(_safe_str(t.get("strategy_id"))),
                     _csv_escape(_safe_str(t.get("side"))),
-                    _csv_escape(_safe_str(t.get("price"))),       // #4: Escape all fields
+                    _csv_escape(_safe_str(t.get("price"))),       # Escape all fields
                     _csv_escape(_safe_str(t.get("quantity"))),
                     _csv_escape(_safe_str(t.get("filled_quantity"))),
                     _csv_escape(_safe_str(t.get("pnl"))),

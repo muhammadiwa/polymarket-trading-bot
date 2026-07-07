@@ -8,7 +8,7 @@ interface HistogramBin {
 }
 
 interface PnLHistogramProps {
-  pnls: number[];
+  pnls: (number | string)[];
   bins?: number;
   loading?: boolean;
 }
@@ -55,7 +55,9 @@ export function PnLHistogram({ pnls, bins = 20, loading }: PnLHistogramProps) {
     return <div className="h-64 flex items-center justify-center text-gray-400">No data</div>;
   }
 
-  const histogramData = buildHistogram(pnls, bins);
+  // Convert string[] to number[]
+  const numericPnls = pnls.map((p) => typeof p === "string" ? parseFloat(p) : p).filter((n) => !isNaN(n));
+  const histogramData = buildHistogram(numericPnls, bins);
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-md p-5">

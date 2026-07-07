@@ -112,7 +112,7 @@ export interface PnLData {
 }
 
 export interface HistogramData {
-  pnls: number[];
+  pnls: string[];  // Decimal strings from backend
   count: number;
   bins: number;
 }

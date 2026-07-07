@@ -333,8 +333,11 @@ async def detect_anomalies(
         })
 
     # Rule 4: Profit factor drop
-    current_pf = Decimal(current_perf["profit_factor"]) if current_perf.get("profit_factor") else None
-    baseline_pf = Decimal(baseline_perf["profit_factor"]) if baseline_perf.get("profit_factor") else None
+    current_pf_raw = current_perf.get("profit_factor")
+    baseline_pf_raw = baseline_perf.get("profit_factor")
+    # #5: Guard against 'None' string from str(None)
+    current_pf = Decimal(current_pf_raw) if current_pf_raw and current_pf_raw != "None" else None
+    baseline_pf = Decimal(baseline_pf_raw) if baseline_pf_raw and baseline_pf_raw != "None" else None
     pf_low = Decimal(str(thresholds.get("profit_factor_low", 0.5)))
     if current_pf is not None and baseline_pf is not None and baseline_pf > Decimal("1.5") and current_pf < pf_low:
         anomalies.append({

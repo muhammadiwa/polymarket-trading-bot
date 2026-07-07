@@ -52,7 +52,7 @@ async def anomaly_check_loop():
                                     extra={"anomaly_id": anomaly_id, "type": anomaly["anomaly_type"],
                                            "severity": anomaly["severity"], "metric": anomaly["metric_name"]})
 
-                                # #2: Publish with guaranteed close
+                                # Publish anomaly event
                                 event = {
                                     "event_id": str(uuid4()),
                                     "event_type": "AnomalyDetected",
@@ -61,6 +61,24 @@ async def anomaly_check_loop():
                                     "payload": {**anomaly, "id": anomaly_id},
                                 }
                                 await nc.publish("pqap.analytics.anomaly", json.dumps(event).encode())
+
+                                # #6: Also publish to notification service for Telegram delivery
+                                severity_map = {"critical": "critical", "high": "high", "medium": "warning", "low": "info"}
+                                notif_event = {
+                                    "event_id": str(uuid4()),
+                                    "event_type": "NotificationRequest",
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                    "source": "analytics",
+                                    "payload": {
+                                        "category": "risk",
+                                        "title": f"Anomaly Detected: {anomaly['anomaly_type']}",
+                                        "message": f"{anomaly['metric_name']}: threshold={anomaly['threshold_value']}, actual={anomaly['actual_value']}",
+                                        "channel": "telegram",
+                                        "priority": severity_map.get(anomaly["severity"], "info"),
+                                        "bypass_throttle": anomaly["severity"] in ("critical", "high"),
+                                    },
+                                }
+                                await nc.publish("pqap.notification.request", json.dumps(notif_event).encode())
                                 ANOMALY_ALERTS_SENT.inc()
                     except Exception as e:
                         logger.error("failed to publish anomaly alert", exc_info=e)
