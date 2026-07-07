@@ -172,8 +172,23 @@ These are flagged in the opportunity/trade data by the existing backtest engine.
 
 ### Agent Model Used
 
-### Debug Log References
+mimo-v2.5-pro
 
 ### Completion Notes List
 
+- Task 1: Replay engine with speed-controlled async generator
+- Task 2: SSE streaming endpoint + step-forward endpoint
+- Task 3: Frontend replay page with controls and decision log
+
 ### File List
+
+**New files:**
+- `services/backtesting/app/engine/replay_engine.py`
+- `services/backtesting/app/routes/replay.py`
+- `services/dashboard/src/app/replay/page.tsx`
+- `services/dashboard/src/components/replay/ReplayControls.tsx`
+- `services/dashboard/src/components/replay/DecisionLog.tsx`
+
+**Modified files:**
+- `services/backtesting/app/models/backtest.py` — added ReplayRequest, ReplayEvent, DecisionDisplay
+- `services/backtesting/app/main.py` — registered replay router

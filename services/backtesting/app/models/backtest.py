@@ -93,3 +93,28 @@ class SweepResults(BaseModel):
     results: list[SweepResult]
     best: Optional[SweepResult] = None
     total_configs: int
+
+
+# --- Replay Models (Story 5.5) ---
+
+class ReplayRequest(BaseModel):
+    strategy_id: str = Field(min_length=1, max_length=64)
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    speed: int = Field(default=1, ge=1, le=10, description="Replay speed multiplier (1x, 2x, 5x, 10x)")
+
+
+class ReplayEvent(BaseModel):
+    event_type: str  # "market_update", "decision", "risk_event", "done"
+    timestamp: str
+    data: dict
+
+
+class DecisionDisplay(BaseModel):
+    timestamp: str
+    market_id: str
+    detected: str  # "YES+NO arbitrage", "Cross-market arbitrage"
+    decision: str  # "EXECUTE", "SKIP", "FILTER"
+    reason: str
+    score: str
+    risk_result: str  # "ALLOWED", "DENIED"

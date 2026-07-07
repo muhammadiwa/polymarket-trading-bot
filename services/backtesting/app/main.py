@@ -6,7 +6,7 @@ from prometheus_client import make_asgi_app
 
 from app.config import config
 from app.db import close_pools, init_pools
-from app.routes import backtest
+from app.routes import backtest, replay
 
 logging.basicConfig(level=getattr(logging, config.LOG_LEVEL.upper(), logging.INFO))
 logger = logging.getLogger(__name__)
@@ -27,6 +27,7 @@ metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 
 app.include_router(backtest.router)
+app.include_router(replay.router)
 
 
 @app.get("/health")
