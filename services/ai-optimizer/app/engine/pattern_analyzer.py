@@ -1,4 +1,5 @@
 import logging
+import math
 from collections import defaultdict
 from decimal import Decimal
 from typing import Optional
@@ -48,11 +49,14 @@ def _analyze_time_of_day(trades: list, wins: list, losses: list) -> Optional[dic
 
     for t in trades:
         ts = t.get("fill_timestamp") or t.get("created_at")
-        if ts:
-            hour = ts.hour if hasattr(ts, "hour") else 0
-            hour_total[hour] = hour_total.get(hour, 0) + 1
-            if Decimal(str(t.get("pnl", "0"))) > ZERO:
-                hour_wins[hour] = hour_wins.get(hour, 0) + 1
+        # #5: Skip trades with missing timestamps
+        if ts and hasattr(ts, "hour"):
+            hour = ts.hour
+        else:
+            continue
+        hour_total[hour] = hour_total.get(hour, 0) + 1
+        if Decimal(str(t.get("pnl", "0"))) > ZERO:
+            hour_wins[hour] = hour_wins.get(hour, 0) + 1
 
     if len(hour_total) < 3:
         return None
@@ -80,7 +84,8 @@ def _analyze_time_of_day(trades: list, wins: list, losses: list) -> Optional[dic
     except Exception:
         return None
 
-    if p_value >= 0.05:
+    # #9: Guard against NaN p-values
+    if p_value is None or math.isnan(p_value) or p_value >= 0.05:
         return None
 
     impact_pct = ((best_rate - worst_rate) / worst_rate * 100) if worst_rate > 0 else 0
@@ -124,7 +129,7 @@ def _analyze_score_threshold(trades: list, wins: list, losses: list) -> Optional
     except Exception:
         return None
 
-    if p_value >= 0.05:
+    if p_value is None or math.isnan(p_value) or p_value >= 0.05:
         return None
 
     impact_pct = ((high_rate - low_rate) / low_rate * 100) if low_rate > 0 else 0
@@ -164,7 +169,7 @@ def _analyze_position_sizing(trades: list, wins: list, losses: list) -> Optional
     except Exception:
         return None
 
-    if p_value >= 0.05:
+    if p_value is None or math.isnan(p_value) or p_value >= 0.05:
         return None
 
     return {
