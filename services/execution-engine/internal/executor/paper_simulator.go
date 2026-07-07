@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/pqap/services/execution-engine/internal/ports"
@@ -16,6 +17,7 @@ type PaperSimulator struct {
 	marketPricePort ports.MarketPricePort
 	logger          *zap.Logger
 	rng             *rand.Rand
+	rngMu           sync.Mutex // #2: Protect rng from concurrent access
 	slippagePct     float64
 }
 
@@ -40,14 +42,13 @@ type SimulatedFill struct {
 
 // SimulateFill simulates a fill based on orderbook depth and configurable parameters.
 func (ps *PaperSimulator) SimulateFill(ctx context.Context, order *ports.Order) *SimulatedFill {
-	// Get real orderbook depth from Redis
 	depth := ps.marketPricePort.GetLiquidityDepth(ctx, order.MarketID)
-
-	// Estimate fill probability based on depth
 	fillProb := estimateFillProbability(depth)
 
-	// Simulate with randomness
+	ps.rngMu.Lock()
 	filled := ps.rng.Float64() < fillProb
+	latencyMs := int64(ps.rng.Intn(100))
+	ps.rngMu.Unlock()
 
 	if !filled {
 		return &SimulatedFill{
@@ -55,23 +56,25 @@ func (ps *PaperSimulator) SimulateFill(ctx context.Context, order *ports.Order) 
 			Status:    "SIMULATED_NO_FILL",
 			FillPrice: decimal.Zero,
 			Quantity:  decimal.Zero,
-			LatencyMs: int64(ps.rng.Intn(50)),
+			LatencyMs: latencyMs,
 			PnL:       decimal.Zero,
 		}
 	}
 
-	// Apply slippage
+	// #3: Apply slippage in correct direction based on side
 	slippage := order.Price.Mul(decimal.NewFromFloat(ps.slippagePct))
-	fillPrice := order.Price.Sub(slippage)
+	var fillPrice decimal.Decimal
+	if order.Side == "BUY" {
+		fillPrice = order.Price.Sub(slippage) // BUY: lower is worse
+	} else {
+		fillPrice = order.Price.Add(slippage) // SELL: higher is worse
+	}
 	if fillPrice.IsNegative() {
 		fillPrice = order.Price
 	}
 
-	// Simulate latency
-	latencyMs := int64(ps.rng.Intn(100))
-
-	// Calculate PnL (spread - slippage as profit potential)
-	pnl := slippage.Mul(order.Quantity).Neg() // Paper PnL = -slippage * quantity (cost)
+	// #9: PnL = slippage cost at entry (tracked separately from position PnL)
+	pnl := slippage.Mul(order.Quantity).Neg()
 
 	return &SimulatedFill{
 		Filled:    true,
@@ -83,23 +86,28 @@ func (ps *PaperSimulator) SimulateFill(ctx context.Context, order *ports.Order) 
 	}
 }
 
-// GetExecutionMode reads execution mode from Redis.
+// GetExecutionMode reads execution mode from Redis with validation.
 func GetExecutionMode(ctx context.Context, riskPort ports.RiskPort) string {
-	// Read from Redis via risk port
 	mode, err := riskPort.GetExecutionMode(ctx)
 	if err != nil || mode == "" {
-		return "LIVE" // Default to LIVE for safety
+		return "LIVE"
+	}
+	// #4: Validate mode is exactly LIVE or PAPER
+	if mode != "LIVE" && mode != "PAPER" {
+		return "LIVE"
 	}
 	return mode
 }
 
 func estimateFillProbability(depth decimal.Decimal) float64 {
-	// Simple model: deeper orderbook = higher fill probability
 	if depth.IsZero() || depth.IsNegative() {
-		return 0.1 // Minimum 10% for any order
+		return 0.1
 	}
-	// Cap at 95% — never guarantee fills
 	prob := depth.InexactFloat64() / 10000.0
+	// #10: Handle NaN
+	if prob != prob { // NaN check
+		return 0.1
+	}
 	if prob > 0.95 {
 		return 0.95
 	}
