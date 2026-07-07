@@ -24,7 +24,7 @@ export function OrderbookTable({ bids, asks, spread }: OrderbookTableProps) {
     <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-md overflow-hidden">
       <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
         <h3 className="text-sm font-medium text-gray-400">Orderbook</h3>
-        <span className="text-xs text-gray-400">Spread: <span className="text-white font-mono">{spread}</span></span>
+        <span className="text-xs text-gray-400">Spread: <span className="text-white font-mono">{spread ?? "N/A"}</span></span>
       </div>
 
       <div className="grid grid-cols-2 gap-0">

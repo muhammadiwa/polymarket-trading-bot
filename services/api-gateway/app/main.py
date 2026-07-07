@@ -19,6 +19,7 @@ from app.routes.notifications import router as notifications_router
 from app.routes.opportunities import router as opportunities_router
 from app.routes.auth import router as auth_router
 from app.routes.admin import router as admin_router
+from app.routes.orderbook import close_client as close_orderbook_client
 from app.middleware.csrf import CSRFMiddleware
 
 logging.basicConfig(
@@ -32,6 +33,7 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
+    await close_orderbook_client()
     await close_http_client()
     await close_redis_pool()
     await close_pool()

@@ -142,7 +142,7 @@ async def get_histogram(
     async with pool.acquire() as conn:
         trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id)
 
-    pnls = [float(t["pnl"]) for t in trades]
+    pnls = [str(t["pnl"]) for t in trades]  # #3: Keep as Decimal strings
     return {"pnls": pnls, "count": len(pnls), "bins": bins}
 
 
@@ -182,14 +182,14 @@ async def export_trades(
                     _csv_escape(_safe_str(t.get("market_slug"))),
                     _csv_escape(_safe_str(t.get("strategy_id"))),
                     _csv_escape(_safe_str(t.get("side"))),
-                    _safe_str(t.get("price")),
-                    _safe_str(t.get("quantity")),
-                    _safe_str(t.get("filled_quantity")),
-                    _safe_str(t.get("pnl")),
-                    _safe_str(t.get("fee")),
-                    _safe_str(t.get("slippage_pct")),
+                    _csv_escape(_safe_str(t.get("price"))),       // #4: Escape all fields
+                    _csv_escape(_safe_str(t.get("quantity"))),
+                    _csv_escape(_safe_str(t.get("filled_quantity"))),
+                    _csv_escape(_safe_str(t.get("pnl"))),
+                    _csv_escape(_safe_str(t.get("fee"))),
+                    _csv_escape(_safe_str(t.get("slippage_pct"))),
                     _csv_escape(_safe_str(t.get("fill_status"))),
-                    _safe_str(t.get("latency_ms")),
+                    _csv_escape(_safe_str(t.get("latency_ms"))),
                 ])
                 yield row + "\n"
 

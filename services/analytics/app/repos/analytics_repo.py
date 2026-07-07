@@ -1,4 +1,5 @@
 import math
+import json
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
@@ -239,9 +240,8 @@ async def calculate_risk_metrics(
     # VaR 95% (parametric) — uses sample variance (N-1)
     if len(pnls) > 1:
         mean_return = sum(pnls) / Decimal(len(pnls))
-        # #2: Use sample variance (N-1) for Sharpe and VaR
         variance = sum((p - mean_return) ** 2 for p in pnls) / Decimal(len(pnls) - 1)
-        std_return = Decimal(str(math.sqrt(float(variance))))
+        std_return = _decimal_sqrt(variance)  # #2: Use Decimal sqrt, not float
         var_95 = (mean_return - Z_SCORE_95 * std_return).quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
     else:
         var_95 = ZERO

@@ -17,7 +17,20 @@ HTTP_TIMEOUT = 10.0
 MARKET_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 
 # Module-level client for connection pooling
-_client = httpx.AsyncClient(timeout=HTTP_TIMEOUT, limits=httpx.Limits(max_connections=50))
+_client: httpx.AsyncClient = None
+
+
+async def init_client():
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(timeout=HTTP_TIMEOUT, limits=httpx.Limits(max_connections=50))
+
+
+async def close_client():
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
 
 
 def _validate_market_id(market_id: str) -> str:
