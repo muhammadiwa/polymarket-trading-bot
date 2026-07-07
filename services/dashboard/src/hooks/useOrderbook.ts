@@ -56,7 +56,7 @@ export function useOrderbook(marketId: string): UseOrderbookResult {
       try {
         const [ob, tr] = await Promise.allSettled([
           fetchOrderbook(marketId),
-          fetchRecentTrades(marketId, 100),
+          fetchRecentTrades(marketId, 100), // #5: Explicitly pass limit=100
         ]);
 
         if (controller.signal.aborted || requestId !== requestIdRef.current) return;

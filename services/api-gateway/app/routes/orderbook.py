@@ -78,7 +78,7 @@ async def get_orderbook(
             cum_ask += float(a["size"])
             a["cumulative"] = str(cum_ask)
 
-        spread = "0"
+        spread = None
         if bids and asks:
             spread = str(float(asks[0]["price"]) - float(bids[0]["price"]))
 
