@@ -151,6 +151,8 @@ async def export_trades(
     end_date: str = Query(..., description="End date (ISO 8601)"),
     strategy_id: Optional[str] = Query(None),
     market_id: Optional[str] = Query(None),
+    side: Optional[str] = Query(None, pattern="^(YES|NO)$"),
+    pnl_sign: Optional[str] = Query(None, pattern="^(positive|negative|zero)$"),
     _user: dict = Depends(verify_jwt),
 ):
     """Stream trades as CSV download."""
@@ -166,7 +168,7 @@ async def export_trades(
         yield header
 
         async with pool.acquire() as conn:
-            trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id)
+            trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id, side, pnl_sign)
             for t in trades:
                 ts = t["fill_timestamp"].isoformat() if t.get("fill_timestamp") else ""
                 row = ",".join([
@@ -191,6 +193,47 @@ async def export_trades(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=trades_export.csv"},
     )
+
+
+@router.get("/export/json")
+async def export_trades_json(
+    start_date: str = Query(..., description="Start date (ISO 8601)"),
+    end_date: str = Query(..., description="End date (ISO 8601)"),
+    strategy_id: Optional[str] = Query(None),
+    market_id: Optional[str] = Query(None),
+    side: Optional[str] = Query(None, pattern="^(YES|NO)$"),
+    pnl_sign: Optional[str] = Query(None, pattern="^(positive|negative|zero)$"),
+    _user: dict = Depends(verify_jwt),
+):
+    """Export trades as JSON array."""
+    start = _parse_date(start_date, "start_date")
+    end = _parse_date(end_date, "end_date")
+    if start >= end:
+        raise HTTPException(status_code=400, detail="start_date must be before end_date")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id, side, pnl_sign)
+
+    result = []
+    for t in trades:
+        result.append({
+            "timestamp": t["fill_timestamp"].isoformat() if t.get("fill_timestamp") else None,
+            "market_id": t.get("market_id"),
+            "market_slug": t.get("market_slug"),
+            "strategy_id": t.get("strategy_id"),
+            "side": t.get("side"),
+            "price": str(t.get("price", "")),
+            "quantity": str(t.get("quantity", "")),
+            "filled_quantity": str(t.get("filled_quantity", "")),
+            "pnl": str(t.get("pnl", "")),
+            "fee": str(t.get("fee", "")),
+            "slippage_pct": str(t.get("slippage_pct", "")),
+            "fill_status": t.get("fill_status"),
+            "latency_ms": t.get("latency_ms"),
+        })
+
+    return {"trades": result, "count": len(result)}
 
 
 def _csv_escape(value: str) -> str:

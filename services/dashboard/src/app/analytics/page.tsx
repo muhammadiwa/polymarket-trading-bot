@@ -5,7 +5,7 @@ import { useAnalytics } from "@/hooks/useAnalytics";
 import { PnLLineChart } from "@/components/charts/PnLLineChart";
 import { PnLHistogram } from "@/components/charts/PnLHistogram";
 import { StrategyPieChart } from "@/components/charts/StrategyPieChart";
-import { downloadCSV } from "@/lib/api";
+import { downloadCSV, downloadJSON } from "@/lib/api";
 
 export default function AnalyticsPage() {
   const [startDate, setStartDate] = useState(() => {
@@ -14,14 +14,27 @@ export default function AnalyticsPage() {
     return d.toISOString().split("T")[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [side, setSide] = useState<string>("all");
+  const [pnlSign, setPnlSign] = useState<string>("all");
   const [exporting, setExporting] = useState(false);
 
   const { pnlData, histogramData, loading, error } = useAnalytics(startDate, endDate);
 
-  const handleExport = async () => {
+  const handleExportCSV = async () => {
     setExporting(true);
     try {
-      await downloadCSV(startDate, endDate);
+      await downloadCSV(startDate, endDate, side === "all" ? undefined : side, pnlSign === "all" ? undefined : pnlSign);
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportJSON = async () => {
+    setExporting(true);
+    try {
+      await downloadJSON(startDate, endDate, side === "all" ? undefined : side, pnlSign === "all" ? undefined : pnlSign);
     } catch (err) {
       console.error("Export failed:", err);
     } finally {
@@ -31,9 +44,9 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-white">Analytics</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <input
             type="date"
             value={startDate}
@@ -47,12 +60,38 @@ export default function AnalyticsPage() {
             onChange={(e) => setEndDate(e.target.value)}
             className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm"
           />
+          <select
+            value={side}
+            onChange={(e) => setSide(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm"
+          >
+            <option value="all">All Sides</option>
+            <option value="YES">YES</option>
+            <option value="NO">NO</option>
+          </select>
+          <select
+            value={pnlSign}
+            onChange={(e) => setPnlSign(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm"
+          >
+            <option value="all">All PnL</option>
+            <option value="positive">Winning</option>
+            <option value="negative">Losing</option>
+            <option value="zero">Break-even</option>
+          </select>
           <button
-            onClick={handleExport}
+            onClick={handleExportCSV}
             disabled={exporting}
             className="px-4 py-2 rounded-lg bg-[#00d4ff] text-black font-medium text-sm hover:bg-[#00d4ff]/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {exporting ? "Exporting..." : "Export CSV"}
+            {exporting ? "Exporting..." : "CSV"}
+          </button>
+          <button
+            onClick={handleExportJSON}
+            disabled={exporting}
+            className="px-4 py-2 rounded-lg bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            JSON
           </button>
         </div>
       </div>

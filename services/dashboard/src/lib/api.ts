@@ -175,12 +175,16 @@ export async function fetchAnalyticsHistogram(startDate: string, endDate: string
   return request<import("@/types").HistogramData>(`/api/analytics/histogram?start_date=${startDate}&end_date=${endDate}&bins=${bins}`);
 }
 
-export async function downloadCSV(startDate: string, endDate: string): Promise<void> {
+export async function downloadCSV(startDate: string, endDate: string, side?: string, pnlSign?: string): Promise<void> {
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}/api/analytics/export?start_date=${startDate}&end_date=${endDate}`, { headers, credentials: "include" });
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  if (side) params.set("side", side);
+  if (pnlSign) params.set("pnl_sign", pnlSign);
+
+  const res = await fetch(`${API_BASE}/api/analytics/export?${params.toString()}`, { headers, credentials: "include" });
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);
 
   const blob = await res.blob();
@@ -188,6 +192,27 @@ export async function downloadCSV(startDate: string, endDate: string): Promise<v
   const a = document.createElement("a");
   a.href = url;
   a.download = `trades_${startDate}_${endDate}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadJSON(startDate: string, endDate: string, side?: string, pnlSign?: string): Promise<void> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  if (side) params.set("side", side);
+  if (pnlSign) params.set("pnl_sign", pnlSign);
+
+  const res = await fetch(`${API_BASE}/api/analytics/export/json?${params.toString()}`, { headers, credentials: "include" });
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trades_${startDate}_${endDate}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }

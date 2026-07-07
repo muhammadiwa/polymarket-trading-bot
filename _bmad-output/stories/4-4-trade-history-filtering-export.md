@@ -107,8 +107,19 @@ elif pnl_sign == "zero":
 
 ### Agent Model Used
 
-### Debug Log References
+mimo-v2.5-pro
 
 ### Completion Notes List
 
+- Task 1: Added side and pnl_sign SQL filters to get_trades_in_range()
+- Task 2: Added GET /api/analytics/export/json endpoint
+- Task 3: Extended CSV export with side and pnl_sign filters
+- Task 4: Added filter UI (side, pnl_sign dropdowns) + JSON download button
+
 ### File List
+
+**Modified files:**
+- `services/analytics/app/repos/analytics_repo.py` — added side and pnl_sign filters
+- `services/analytics/app/routes/analytics.py` — added /export/json endpoint, extended /export with filters
+- `services/dashboard/src/app/analytics/page.tsx` — added filter controls + JSON button
+- `services/dashboard/src/lib/api.ts` — added downloadJSON, updated downloadCSV with filters
