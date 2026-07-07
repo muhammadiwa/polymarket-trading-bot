@@ -77,13 +77,14 @@ func (ps *PaperSimulator) SimulateFill(ctx context.Context, order *ports.Order) 
 
 	// #9: PnL = slippage cost (tracked as negative for entry, positive on exit)
 	// For paper trading, we track the slippage as the cost of the trade
-	pnl := slippage.Mul(order.Quantity).Neg()
+	quantity := order.Size // #1: Use Size field from Order struct
+	pnl := slippage.Mul(quantity).Neg()
 
 	return &SimulatedFill{
 		Filled:    true,
 		Status:    "SIMULATED_FILL",
 		FillPrice: fillPrice,
-		Quantity:  order.Quantity,
+		Quantity:  quantity,
 		LatencyMs: latencyMs,
 		PnL:       pnl,
 		Side:      order.Side,
@@ -94,11 +95,10 @@ func (ps *PaperSimulator) SimulateFill(ctx context.Context, order *ports.Order) 
 func GetExecutionMode(ctx context.Context, riskPort ports.RiskPort) string {
 	mode, err := riskPort.GetExecutionMode(ctx)
 	if err != nil || mode == "" {
-		return "LIVE"
+		return "PAPER" // #7: Default to PAPER (safe mode), matching API gateway
 	}
-	// #4: Validate mode is exactly LIVE or PAPER
 	if mode != "LIVE" && mode != "PAPER" {
-		return "LIVE"
+		return "PAPER"
 	}
 	return mode
 }

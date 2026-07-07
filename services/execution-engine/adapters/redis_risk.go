@@ -129,7 +129,7 @@ func (r *RedisRisk) Close() error {
 func (r *RedisRisk) GetExecutionMode(ctx context.Context) (string, error) {
 	val, err := r.client.Get(ctx, "pqap:execution_mode").Result()
 	if err == redis.Nil {
-		return "LIVE", nil // Default to LIVE
+		return "PAPER", nil // Default to PAPER (safe mode)
 	}
 	if err != nil {
 		return "", err

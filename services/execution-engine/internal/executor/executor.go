@@ -184,7 +184,7 @@ func (e *Executor) Execute(ctx context.Context, opp ports.OpportunityDetected) e
 				MarketID: opp.Payload.MarketID,
 				Side:     side,
 				Price:    price,
-				Quantity: orderSize,
+				Size:     orderSize, // #1: Use Size, not Quantity
 			}
 			fill := e.paperSim.SimulateFill(ctx, order)
 

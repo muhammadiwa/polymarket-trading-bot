@@ -24,14 +24,18 @@ _semaphore = asyncio.Semaphore(MAX_CONCURRENT_BACKTESTS)
 @router.post("/run", response_model=BacktestStatus)
 async def start_backtest(body: BacktestRequest, _user: dict = Depends(verify_jwt)):
     """Start a new backtest run."""
-    # #4: Actually acquire semaphore (not just check)
+    # #5: Properly await semaphore acquisition
     if _semaphore.locked():
         raise HTTPException(status_code=429, detail="Too many concurrent backtests. Try again later.")
-    _semaphore.acquire()
+    await _semaphore.acquire()
 
-    pool = await get_pg_pool()
-    async with pool.acquire() as conn:
-        run_id = await backtest_repo.create_run(conn, body)
+    try:
+        pool = await get_pg_pool()
+        async with pool.acquire() as conn:
+            run_id = await backtest_repo.create_run(conn, body)
+    except Exception:
+        _semaphore.release()
+        raise
 
     task = asyncio.create_task(_run_backtest_background(run_id, body, _semaphore))
     _background_tasks.add(task)
@@ -186,6 +190,7 @@ async def run_sweep(body: SweepRequest, _user: dict = Depends(verify_jwt)):
     # #4: Acquire semaphore for sweep
     if _semaphore.locked():
         raise HTTPException(status_code=429, detail="Too many concurrent backtests/sweeps.")
+    await _semaphore.acquire()
 
     # Fetch opportunities once
     pg_pool = await get_pg_pool()
@@ -195,6 +200,7 @@ async def run_sweep(body: SweepRequest, _user: dict = Depends(verify_jwt)):
         opportunities = await backtest_repo.get_opportunities(conn, body.start_date, body.end_date)
 
     if not opportunities:
+        _semaphore.release()
         return SweepResults(results=[], best=None, total_configs=0)
 
     # Run all configurations with timeout
@@ -214,6 +220,8 @@ async def run_sweep(body: SweepRequest, _user: dict = Depends(verify_jwt)):
         await asyncio.wait_for(_run_sweep(), timeout=3600)
     except asyncio.TimeoutError:
         raise HTTPException(status_code=408, detail="Sweep timed out after 1 hour")
+    finally:
+        _semaphore.release()
 
     # #8: Rank by selected metric with NaN handling
     def sort_key(item):
