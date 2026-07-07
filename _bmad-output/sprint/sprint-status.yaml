@@ -81,7 +81,7 @@ development_status:
   5-3-paper-trading-simulation-separate-pnl: review
   5-4-paper-trading-seamless-live-switch: review
   5-5-replay-mode-speed-control-decision-display: review
-  epic-5-retrospective: optional
+  epic-5-retrospective: done
 
   # Epic 6: AI Strategy Optimization
   epic-6: backlog
