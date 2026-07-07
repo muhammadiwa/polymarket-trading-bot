@@ -165,3 +165,77 @@ export async function fetchOpportunities(cursor?: string, pageSize = 50, status?
   const qs = params.toString();
   return request<OpportunityListResponse>(`/api/opportunities${qs ? `?${qs}` : ""}`);
 }
+
+// Analytics API
+export async function fetchAnalyticsPnL(startDate: string, endDate: string, groupBy = "day"): Promise<import("@/types").PnLData> {
+  return request<import("@/types").PnLData>(`/api/analytics/pnl?start_date=${startDate}&end_date=${endDate}&group_by=${groupBy}`);
+}
+
+export async function fetchAnalyticsHistogram(startDate: string, endDate: string, bins = 20): Promise<import("@/types").HistogramData> {
+  return request<import("@/types").HistogramData>(`/api/analytics/histogram?start_date=${startDate}&end_date=${endDate}&bins=${bins}`);
+}
+
+export async function downloadCSV(startDate: string, endDate: string, side?: string, pnlSign?: string, strategyId?: string, marketId?: string): Promise<void> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  if (side) params.set("side", side);
+  if (pnlSign) params.set("pnl_sign", pnlSign);
+  if (strategyId) params.set("strategy_id", strategyId);
+  if (marketId) params.set("market_id", marketId);
+
+  const res = await fetch(`${API_BASE}/api/analytics/export?${params.toString()}`, { headers, credentials: "include" });
+  // #1: Handle 401 redirect
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return;
+  }
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trades_${startDate}_${endDate}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadJSON(startDate: string, endDate: string, side?: string, pnlSign?: string, strategyId?: string, marketId?: string): Promise<void> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  if (side) params.set("side", side);
+  if (pnlSign) params.set("pnl_sign", pnlSign);
+  if (strategyId) params.set("strategy_id", strategyId);
+  if (marketId) params.set("market_id", marketId);
+
+  const res = await fetch(`${API_BASE}/api/analytics/export/json?${params.toString()}`, { headers, credentials: "include" });
+  // #1: Handle 401 redirect
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return;
+  }
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trades_${startDate}_${endDate}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Orderbook API
+export async function fetchOrderbook(marketId: string): Promise<import("@/types").OrderbookSnapshot> {
+  return request<import("@/types").OrderbookSnapshot>(`/api/orderbook/${marketId}`);
+}
+
+export async function fetchRecentTrades(marketId: string, limit = 100): Promise<{ trades: import("@/types").RecentTrade[]; count: number }> {
+  return request<{ trades: import("@/types").RecentTrade[]; count: number }>(`/api/orderbook/${marketId}/trades?limit=${limit}`);
+}

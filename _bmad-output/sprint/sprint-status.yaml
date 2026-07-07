@@ -66,13 +66,13 @@ development_status:
   epic-3-retrospective: done
 
   # Epic 4: Intelligence & Analytics
-  epic-4: backlog
-  4-1-analytics-pnl-performance-metrics: backlog
-  4-2-analytics-charts-csv-export: backlog
-  4-3-analytics-anomaly-detection: backlog
-  4-4-trade-history-filtering-export: backlog
-  4-5-orderbook-viewer-real-time-display-depth-chart: backlog
-  epic-4-retrospective: optional
+  epic-4: in-progress
+  4-1-analytics-pnl-performance-metrics: review
+  4-2-analytics-charts-csv-export: review
+  4-3-analytics-anomaly-detection: review
+  4-4-trade-history-filtering-export: review
+  4-5-orderbook-viewer-real-time-display-depth-chart: review
+  epic-4-retrospective: done
 
   # Epic 5: Backtesting & Paper Trading
   epic-5: backlog
