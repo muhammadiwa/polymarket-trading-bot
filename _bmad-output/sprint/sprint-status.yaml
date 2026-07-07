@@ -75,8 +75,8 @@ development_status:
   epic-4-retrospective: done
 
   # Epic 5: Backtesting & Paper Trading
-  epic-5: backlog
-  5-1-backtesting-engine-replay-simulation: backlog
+  epic-5: in-progress
+  5-1-backtesting-engine-replay-simulation: ready-for-dev
   5-2-backtesting-metrics-reports-parameter-sweeps: backlog
   5-3-paper-trading-simulation-separate-pnl: backlog
   5-4-paper-trading-seamless-live-switch: backlog
