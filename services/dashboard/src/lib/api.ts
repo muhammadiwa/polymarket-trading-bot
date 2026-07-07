@@ -187,6 +187,11 @@ export async function downloadCSV(startDate: string, endDate: string, side?: str
   if (marketId) params.set("market_id", marketId);
 
   const res = await fetch(`${API_BASE}/api/analytics/export?${params.toString()}`, { headers, credentials: "include" });
+  // #1: Handle 401 redirect
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return;
+  }
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);
 
   const blob = await res.blob();
@@ -210,6 +215,11 @@ export async function downloadJSON(startDate: string, endDate: string, side?: st
   if (marketId) params.set("market_id", marketId);
 
   const res = await fetch(`${API_BASE}/api/analytics/export/json?${params.toString()}`, { headers, credentials: "include" });
+  // #1: Handle 401 redirect
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return;
+  }
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);
 
   const blob = await res.blob();

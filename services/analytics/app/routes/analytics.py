@@ -246,11 +246,15 @@ async def export_trades_json(
 
 
 def _csv_escape(value: str) -> str:
-    """Escape CSV field: wrap in quotes if contains comma, quote, newline, or carriage return."""
+    """Escape CSV field: wrap in quotes if contains comma, quote, newline, or carriage return.
+    Also neutralize formula injection (=, +, -, @ prefix)."""
     if value is None:
         return ""
     if not value:
         return ""
+    # #2: Neutralize CSV formula injection
+    if value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
+        value = "'" + value
     if "," in value or '"' in value or "\n" in value or "\r" in value:
         return '"' + value.replace('"', '""') + '"'
     return value
