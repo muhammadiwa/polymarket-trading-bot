@@ -65,3 +65,24 @@ func (r *RedisMarketPrice) GetCurrentPrice(ctx context.Context, marketID string)
 func (r *RedisMarketPrice) Close() error {
 	return r.client.Close()
 }
+
+// GetLiquidityDepth returns the liquidity depth for a market from Redis.
+func (r *RedisMarketPrice) GetLiquidityDepth(ctx context.Context, marketID string) decimal.Decimal {
+	sanitized := sanitizeRedisKeyComponent(marketID)
+	key := fmt.Sprintf("pqap:market:liquidity:%s", sanitized)
+
+	checkCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+
+	val, err := r.client.Get(checkCtx, key).Result()
+	if err != nil {
+		return decimal.NewFromFloat(1000) // Default depth
+	}
+
+	depth, err := decimal.NewFromString(strings.TrimSpace(val))
+	if err != nil {
+		return decimal.NewFromFloat(1000)
+	}
+
+	return depth
+}
