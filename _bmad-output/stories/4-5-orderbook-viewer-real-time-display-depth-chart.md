@@ -14,7 +14,7 @@ So that I can analyze market microstructure and make informed decisions.
    **When** the orderbook renders
    **Then** bids, asks, and spread are displayed in real-time
    **And** updates arrive within 100ms of Polymarket data
-   **And** the orderbook matches the Polymarket API state
+   **And** the orderbook matches the Polymarket CLOB API state
 
 2. **Given** the orderbook is displayed
    **When** the depth chart renders
@@ -35,35 +35,35 @@ So that I can analyze market microstructure and make informed decisions.
 
 - [ ] Task 1: Orderbook API Endpoint (AC: #1)
   - [ ] Add GET /api/orderbook/{market_id} to api-gateway
-  - [ ] Proxy scanner service orderbook data
+  - [ ] Fetch orderbook data from Polymarket CLOB API
   - [ ] Return bids, asks, spread, last update timestamp
-- [ ] Task 2: WebSocket Orderbook Stream (AC: #1)
-  - [ ] Extend WS endpoint to stream orderbook updates
-  - [ ] Subscribe to scanner orderbook events via NATS
-  - [ ] Forward to dashboard WebSocket clients
+  - [ ] Cache response for 100ms to avoid API hammering
+- [ ] Task 2: Recent Trades API Endpoint (AC: #3)
+  - [ ] Add GET /api/orderbook/{market_id}/trades to api-gateway
+  - [ ] Fetch recent trades from Polymarket CLOB API
+  - [ ] Return last 100 trades: price, size, side, timestamp
 - [ ] Task 3: Orderbook Component (AC: #1, #4)
   - [ ] Create `services/dashboard/src/components/orderbook/OrderbookView.tsx`
   - [ ] Bids table (green), asks table (red), spread display
   - [ ] Market selector dropdown
-  - [ ] Tab system (up to 5 markets)
+  - [ ] Tab system (up to 5 markets, local state per tab)
 - [ ] Task 4: Depth Chart (AC: #2)
   - [ ] Create `DepthChart.tsx` using recharts
   - [ ] Cumulative bid/ask at each price level
-  - [ ] Real-time updates via WebSocket
+  - [ ] Polling every 2s (or WebSocket if available)
 - [ ] Task 5: Recent Trades (AC: #3)
   - [ ] Create `RecentTrades.tsx`
   - [ ] Last 100 trades: price, size, timestamp
-  - [ ] Real-time updates via WebSocket
+  - [ ] Polling every 2s
 
 ## Dev Notes
 
 ### Architecture Context
 
 - **Frontend:** Next.js (dashboard) with recharts
-- **Backend:** API Gateway proxies scanner service
-- **Data source:** Scanner service (Go) — already has orderbook data from Polymarket WebSocket
-- **Event bus:** NATS for orderbook updates
-- **Pattern:** Dashboard subscribes to orderbook events via WebSocket
+- **Backend:** API Gateway fetches from Polymarket CLOB API
+- **Data source:** Polymarket CLOB API (NOT scanner — scanner only has price snapshots, not full orderbook)
+- **Pattern:** REST API for snapshots, polling for updates (WebSocket orderbook stream is future enhancement)
 
 ### Key Architecture Rules
 
@@ -74,18 +74,23 @@ So that I can analyze market microstructure and make informed decisions.
 - **NFR-OV1:** Orderbook update latency within 100ms
 - **NFR-OV2:** Memory per tab <100MB
 
-### Data Flow
+### Data Source Clarification
+
+The scanner service (`services/scanner/`) has a `Market` struct with:
+- `YESPrice`, `NOPrice`, `Spread`, `Volume24h`, `LiquidityDepth`
+
+This is a **price snapshot**, NOT a full orderbook. For orderbook data (bids/asks at each price level), we need to fetch from **Polymarket CLOB API** directly.
 
 ```
-Polymarket WS → Scanner (Go) → NATS → API Gateway → WebSocket → Dashboard
+Polymarket CLOB API → API Gateway (fetch + cache) → Dashboard (polling)
 ```
 
 ### API Endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/orderbook/{market_id}` | Snapshot of current orderbook |
-| WS | `/ws/orderbook/{market_id}` | Real-time orderbook stream |
+| Method | Path | Source | Purpose |
+|--------|------|--------|---------|
+| GET | `/api/orderbook/{market_id}` | Polymarket CLOB API | Orderbook snapshot (bids, asks, spread) |
+| GET | `/api/orderbook/{market_id}/trades` | Polymarket CLOB API | Recent trades (last 100) |
 
 ### Orderbook Data Structure
 
@@ -111,6 +116,13 @@ interface RecentTrade {
   timestamp: string;
 }
 ```
+
+### Tab System
+
+- Tabs managed via React local state (useState per tab)
+- Each tab fetches its own orderbook data independently
+- Max 5 tabs enforced at UI level
+- Closing a tab cleans up its state and polling interval
 
 ### Testing Standards
 
