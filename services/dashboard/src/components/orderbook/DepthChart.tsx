@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface OrderbookLevel {
@@ -18,25 +19,18 @@ export function DepthChart({ bids, asks }: DepthChartProps) {
     return <div className="h-48 flex items-center justify-center text-gray-400 text-sm">No data</div>;
   }
 
-  // Merge bids and asks into a single dataset sorted by price
-  const data: { price: number; bidDepth: number; askDepth: number }[] = [];
-
-  for (const bid of bids) {
-    data.push({
-      price: parseFloat(bid.price),
-      bidDepth: parseFloat(bid.cumulative),
-      askDepth: 0,
-    });
-  }
-  for (const ask of asks) {
-    data.push({
-      price: parseFloat(ask.price),
-      bidDepth: 0,
-      askDepth: parseFloat(ask.cumulative),
-    });
-  }
-
-  data.sort((a, b) => a.price - b.price);
+  // #18: Memoize data transformation to prevent unnecessary re-renders
+  const data = useMemo(() => {
+    const d: { price: number; bidDepth: number; askDepth: number }[] = [];
+    for (const bid of bids) {
+      d.push({ price: parseFloat(bid.price), bidDepth: parseFloat(bid.cumulative), askDepth: 0 });
+    }
+    for (const ask of asks) {
+      d.push({ price: parseFloat(ask.price), bidDepth: 0, askDepth: parseFloat(ask.cumulative) });
+    }
+    d.sort((a, b) => a.price - b.price);
+    return d;
+  }, [bids, asks]);
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-md p-5">

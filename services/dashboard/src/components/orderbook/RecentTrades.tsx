@@ -24,8 +24,8 @@ export function RecentTrades({ trades }: RecentTradesProps) {
         {trades.length === 0 ? (
           <div className="px-4 py-8 text-center text-gray-500 text-sm">No trades</div>
         ) : (
-          trades.slice(0, 100).map((trade, i) => (
-            <div key={i} className="px-4 py-1 grid grid-cols-4 gap-2 text-xs">
+          trades.slice(0, 100).map((trade) => (
+            <div key={`${trade.timestamp}-${trade.price}-${trade.size}`} className="px-4 py-1 grid grid-cols-4 gap-2 text-xs">
               <span className="font-mono text-white">{parseFloat(trade.price).toFixed(4)}</span>
               <span className="font-mono text-gray-300">{parseFloat(trade.size).toFixed(2)}</span>
               <span className={trade.side === "BUY" ? "text-[#00ff88]" : "text-[#ff4757]"}>

@@ -28,9 +28,12 @@ export function OrderbookView() {
   }, [marketInput, tabs]);
 
   const removeTab = useCallback((marketId: string) => {
-    setTabs((prev) => prev.filter((t) => t.marketId !== marketId));
-    setActiveTab((prev) => (prev === marketId ? tabs[0]?.marketId ?? null : prev));
-  }, [tabs]);
+    setTabs((prev) => {
+      const next = prev.filter((t) => t.marketId !== marketId);
+      setActiveTab((current) => (current === marketId ? (next[0]?.marketId ?? null) : current));
+      return next;
+    });
+  }, []);
 
   return (
     <section className="space-y-4" aria-label="Orderbook Viewer">
@@ -102,7 +105,7 @@ function OrderbookTabContent({ marketId }: { marketId: string }) {
   if (error) {
     return (
       <div className="rounded-xl border border-[#ff4757]/30 bg-[#ff4757]/10 p-5 text-[#ff4757]">
-        {error}
+        Failed to load orderbook. Please try again.
       </div>
     );
   }

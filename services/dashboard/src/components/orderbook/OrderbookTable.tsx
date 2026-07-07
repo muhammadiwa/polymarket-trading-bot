@@ -13,9 +13,10 @@ interface OrderbookTableProps {
 }
 
 export function OrderbookTable({ bids, asks, spread }: OrderbookTableProps) {
+  // #11: Use reduce instead of spread to avoid stack overflow
   const maxSize = Math.max(
-    ...bids.map((b) => parseFloat(b.size) || 0),
-    ...asks.map((a) => parseFloat(a.size) || 0),
+    bids.reduce((m, b) => Math.max(m, parseFloat(b.size) || 0), 0),
+    asks.reduce((m, a) => Math.max(m, parseFloat(a.size) || 0), 0),
     1
   );
 
@@ -33,9 +34,9 @@ export function OrderbookTable({ bids, asks, spread }: OrderbookTableProps) {
             <span>Price</span><span className="text-right">Size</span><span className="text-right">Total</span>
           </div>
           <div className="max-h-[300px] overflow-y-auto">
-            {bids.slice(0, 20).map((bid, i) => (
-              <div key={i} className="relative px-4 py-1 grid grid-cols-3 gap-2 text-xs">
-                <div className="absolute inset-y-0 right-0 bg-[#00ff88]/5" style={{ width: `${(parseFloat(bid.size) / maxSize) * 100}%` }} />
+            {bids.slice(0, 20).map((bid) => (
+              <div key={`${bid.price}-${bid.size}`} className="relative px-4 py-1 grid grid-cols-3 gap-2 text-xs">
+                <div className="absolute inset-y-0 right-0 bg-[#00ff88]/5" style={{ width: `${((parseFloat(bid.size) || 0) / maxSize) * 100}%` }} />
                 <span className="text-[#00ff88] font-mono relative">{bid.price}</span>
                 <span className="text-gray-300 font-mono text-right relative">{parseFloat(bid.size).toFixed(2)}</span>
                 <span className="text-gray-400 font-mono text-right relative">{parseFloat(bid.cumulative).toFixed(2)}</span>
@@ -50,9 +51,9 @@ export function OrderbookTable({ bids, asks, spread }: OrderbookTableProps) {
             <span>Price</span><span className="text-right">Size</span><span className="text-right">Total</span>
           </div>
           <div className="max-h-[300px] overflow-y-auto">
-            {asks.slice(0, 20).map((ask, i) => (
-              <div key={i} className="relative px-4 py-1 grid grid-cols-3 gap-2 text-xs">
-                <div className="absolute inset-y-0 left-0 bg-[#ff4757]/5" style={{ width: `${(parseFloat(ask.size) / maxSize) * 100}%` }} />
+            {asks.slice(0, 20).map((ask) => (
+              <div key={`${ask.price}-${ask.size}`} className="relative px-4 py-1 grid grid-cols-3 gap-2 text-xs">
+                <div className="absolute inset-y-0 left-0 bg-[#ff4757]/5" style={{ width: `${((parseFloat(ask.size) || 0) / maxSize) * 100}%` }} />
                 <span className="text-[#ff4757] font-mono relative">{ask.price}</span>
                 <span className="text-gray-300 font-mono text-right relative">{parseFloat(ask.size).toFixed(2)}</span>
                 <span className="text-gray-400 font-mono text-right relative">{parseFloat(ask.cumulative).toFixed(2)}</span>

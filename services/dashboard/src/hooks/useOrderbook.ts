@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { fetchOrderbook, fetchRecentTrades } from "@/lib/api";
 
 interface OrderbookLevel {
@@ -37,25 +37,42 @@ export function useOrderbook(marketId: string): UseOrderbookResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
+  const backoffRef = useRef(2000);
 
   useEffect(() => {
     if (!marketId) return;
     const requestId = ++requestIdRef.current;
+    backoffRef.current = 2000; // Reset backoff on new market
 
     const fetchData = async () => {
+      // Cancel previous in-flight request
+      controllerRef.current?.abort();
+      const controller = new AbortController();
+      controllerRef.current = controller;
+
       setLoading(true);
       setError(null);
       try {
-        const [ob, tr] = await Promise.all([
+        const [ob, tr] = await Promise.allSettled([
           fetchOrderbook(marketId),
-          fetchRecentTrades(marketId),
+          fetchRecentTrades(marketId, 100),
         ]);
-        if (requestId !== requestIdRef.current) return;
-        setOrderbook(ob);
-        setTrades(tr.trades ?? []);
+
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+
+        if (ob.status === "fulfilled") setOrderbook(ob.value);
+        if (tr.status === "fulfilled") setTrades(tr.value.trades ?? []);
+
+        if (ob.status === "rejected" && tr.status === "rejected") {
+          setError("Failed to load orderbook data");
+        }
+
+        backoffRef.current = 2000; // Reset on success
       } catch (err) {
-        if (requestId !== requestIdRef.current) return;
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return;
         setError(err instanceof Error ? err.message : "Failed to load orderbook");
+        backoffRef.current = Math.min(backoffRef.current * 2, 30000); // Exponential backoff
       } finally {
         if (requestId === requestIdRef.current) setLoading(false);
       }
@@ -63,10 +80,25 @@ export function useOrderbook(marketId: string): UseOrderbookResult {
 
     fetchData();
 
-    // Poll every 2 seconds
-    const interval = setInterval(fetchData, 2000);
+    // Poll with backoff-aware interval
+    const scheduleNext = () => {
+      return setTimeout(() => {
+        if (requestIdRef.current === requestId) {
+          fetchData().then(() => {
+            if (requestIdRef.current === requestId) {
+              intervalRef.current = scheduleNext();
+            }
+          });
+        }
+      }, backoffRef.current);
+    };
+
+    let intervalRef = { current: scheduleNext() };
+
     return () => {
-      clearInterval(interval);
+      requestIdRef.current++;
+      controllerRef.current?.abort();
+      clearTimeout(intervalRef.current);
     };
   }, [marketId]);
 
