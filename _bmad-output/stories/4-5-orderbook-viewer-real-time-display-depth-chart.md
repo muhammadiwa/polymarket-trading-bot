@@ -146,8 +146,27 @@ interface RecentTrade {
 
 ### Agent Model Used
 
-### Debug Log References
+mimo-v2.5-pro
 
 ### Completion Notes List
 
+- Task 1: GET /api/orderbook/{market_id} — proxies Polymarket CLOB API
+- Task 2: GET /api/orderbook/{market_id}/trades — recent trades from CLOB API
+- Task 3: OrderbookView with tab system (up to 5 markets)
+- Task 4: DepthChart using recharts (bid/ask cumulative)
+- Task 5: RecentTrades component with real-time polling
+
 ### File List
+
+**New files:**
+- `services/api-gateway/app/routes/orderbook.py`
+- `services/dashboard/src/app/orderbook/page.tsx`
+- `services/dashboard/src/components/orderbook/OrderbookView.tsx`
+- `services/dashboard/src/components/orderbook/OrderbookTable.tsx`
+- `services/dashboard/src/components/orderbook/DepthChart.tsx`
+- `services/dashboard/src/components/orderbook/RecentTrades.tsx`
+- `services/dashboard/src/hooks/useOrderbook.ts`
+
+**Modified files:**
+- `services/dashboard/src/lib/api.ts` — added orderbook API functions
+- `services/dashboard/src/types/index.ts` — added orderbook types

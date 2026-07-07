@@ -116,3 +116,24 @@ export interface HistogramData {
   count: number;
   bins: number;
 }
+
+export interface OrderbookLevel {
+  price: string;
+  size: string;
+  cumulative: string;
+}
+
+export interface OrderbookSnapshot {
+  market_id: string;
+  bids: OrderbookLevel[];
+  asks: OrderbookLevel[];
+  spread: string;
+  last_update: string;
+}
+
+export interface RecentTrade {
+  price: string;
+  size: string;
+  side: string;
+  timestamp: string;
+}

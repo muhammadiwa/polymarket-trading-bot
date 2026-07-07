@@ -230,3 +230,12 @@ export async function downloadJSON(startDate: string, endDate: string, side?: st
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// Orderbook API
+export async function fetchOrderbook(marketId: string): Promise<import("@/types").OrderbookSnapshot> {
+  return request<import("@/types").OrderbookSnapshot>(`/api/orderbook/${marketId}`);
+}
+
+export async function fetchRecentTrades(marketId: string, limit = 100): Promise<{ trades: import("@/types").RecentTrade[]; count: number }> {
+  return request<{ trades: import("@/types").RecentTrade[]; count: number }>(`/api/orderbook/${marketId}/trades?limit=${limit}`);
+}
