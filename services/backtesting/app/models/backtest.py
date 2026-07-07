@@ -14,8 +14,8 @@ class SimulationConfig(BaseModel):
 
 class BacktestRequest(BaseModel):
     strategy_id: str = Field(min_length=1, max_length=64)
-    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")
-    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     simulation: SimulationConfig = SimulationConfig()
 
 
@@ -71,14 +71,14 @@ class SweepParameter(BaseModel):
     name: str  # e.g., "slippage_pct"
     min_value: float
     max_value: float
-    step: float
+    step: float = Field(gt=0)  # #2: Prevent division by zero
 
 
 class SweepRequest(BaseModel):
     """#3: Request for parameter sweep."""
     strategy_id: str
-    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")
-    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     parameters: list[SweepParameter]
     rank_by: str = Field(default="sharpe_ratio", pattern="^(sharpe_ratio|total_pnl|win_rate|max_drawdown)$")
     simulation: SimulationConfig = SimulationConfig()

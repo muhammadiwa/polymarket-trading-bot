@@ -24,22 +24,23 @@ _semaphore = asyncio.Semaphore(MAX_CONCURRENT_BACKTESTS)
 @router.post("/run", response_model=BacktestStatus)
 async def start_backtest(body: BacktestRequest, _user: dict = Depends(verify_jwt)):
     """Start a new backtest run."""
-    # Limit concurrent backtests
+    # #4: Actually acquire semaphore (not just check)
     if _semaphore.locked():
         raise HTTPException(status_code=429, detail="Too many concurrent backtests. Try again later.")
+    _semaphore.acquire()
 
     pool = await get_pg_pool()
     async with pool.acquire() as conn:
         run_id = await backtest_repo.create_run(conn, body)
 
-    task = asyncio.create_task(_run_backtest_background(run_id, body))
+    task = asyncio.create_task(_run_backtest_background(run_id, body, _semaphore))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 
     return BacktestStatus(run_id=run_id, status="pending")
 
 
-async def _run_backtest_background(run_id: str, req: BacktestRequest):
+async def _run_backtest_background(run_id: str, req: BacktestRequest, semaphore: asyncio.Semaphore):
     """Background task to run backtest."""
     pg_pool = await get_pg_pool()
     ts_pool = await get_ts_pool()
@@ -85,6 +86,8 @@ async def _run_backtest_background(run_id: str, req: BacktestRequest):
                 await backtest_repo.update_status(conn, run_id, "failed", str(e))
         except Exception:
             pass
+    finally:
+        semaphore.release()
 
 
 @router.get("/{run_id}/status", response_model=BacktestStatus)
