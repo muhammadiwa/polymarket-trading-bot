@@ -14,8 +14,8 @@ class SimulationConfig(BaseModel):
 
 class BacktestRequest(BaseModel):
     strategy_id: str = Field(min_length=1, max_length=64)
-    start_date: str  # ISO 8601
-    end_date: str  # ISO 8601
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")  # #18: Validate date format
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}")    # #18: Validate date format
     simulation: SimulationConfig = SimulationConfig()
 
 

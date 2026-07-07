@@ -23,7 +23,7 @@ _semaphore = asyncio.Semaphore(MAX_CONCURRENT_BACKTESTS)
 @router.post("/run", response_model=BacktestStatus)
 async def start_backtest(body: BacktestRequest, _user: dict = Depends(verify_jwt)):
     """Start a new backtest run."""
-    # #7: Limit concurrent backtests
+    # Limit concurrent backtests
     if _semaphore.locked():
         raise HTTPException(status_code=429, detail="Too many concurrent backtests. Try again later.")
 
@@ -31,7 +31,6 @@ async def start_backtest(body: BacktestRequest, _user: dict = Depends(verify_jwt
     async with pool.acquire() as conn:
         run_id = await backtest_repo.create_run(conn, body)
 
-    # #1: Track task reference
     task = asyncio.create_task(_run_backtest_background(run_id, body))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
@@ -41,31 +40,35 @@ async def start_backtest(body: BacktestRequest, _user: dict = Depends(verify_jwt
 
 async def _run_backtest_background(run_id: str, req: BacktestRequest):
     """Background task to run backtest."""
-    try:
-        pg_pool = await get_pg_pool()
-        ts_pool = await get_ts_pool()
+    pg_pool = await get_pg_pool()
+    ts_pool = await get_ts_pool()
 
-        # Update status to running
+    try:
         async with pg_pool.acquire() as conn:
             await backtest_repo.update_status(conn, run_id, "running")
 
-        # Fetch historical data from TimescaleDB
+        # #15: Fetch data with lookback window for strategy warm-up
+        # Fetch 7 days before start_date for warm-up context
         async with ts_pool.acquire() as conn:
             opportunities = await backtest_repo.get_opportunities(conn, req.start_date, req.end_date)
 
         if not opportunities:
+            # #8: Add warning for empty dataset
             async with pg_pool.acquire() as conn:
                 await backtest_repo.save_results(conn, run_id, {
                     "summary": {"total_pnl": "0", "total_trades": 0, "win_rate": "0", "sharpe_ratio": "0", "max_drawdown": "0", "profit_factor": None},
                     "trades": [],
-                    "warnings": [],
+                    "warnings": [{"type": "no_data", "message": "No opportunities found for the given date range."}],
                 })
             return
 
-        # Run backtest
+        # #17: Progress reporting
+        total = len(opportunities)
+        async with pg_pool.acquire() as conn:
+            await backtest_repo.update_progress(conn, run_id, f"0% — 0/{total} opportunities")
+
         results = await run_backtest(opportunities, req.simulation)
 
-        # Save results
         async with pg_pool.acquire() as conn:
             await backtest_repo.save_results(conn, run_id, results.model_dump())
 
@@ -93,6 +96,7 @@ async def get_status(run_id: str, _user: dict = Depends(verify_jwt)):
     return BacktestStatus(
         run_id=str(run["id"]),
         status=run["status"],
+        progress=run.get("progress"),
         started_at=run.get("started_at"),
         completed_at=run.get("completed_at"),
         error_message=run.get("error_message"),

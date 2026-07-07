@@ -17,12 +17,14 @@ async def init_pools():
 
 
 async def get_pg_pool() -> asyncpg.Pool:
+    global _pg_pool
     if _pg_pool is None:
         await init_pools()
     return _pg_pool
 
 
 async def get_ts_pool() -> asyncpg.Pool:
+    global _ts_pool
     if _ts_pool is None:
         await init_pools()
     return _ts_pool

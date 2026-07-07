@@ -31,9 +31,18 @@ async def update_status(conn: asyncpg.Connection, run_id: str, status: str, erro
 
 
 async def save_results(conn: asyncpg.Connection, run_id: str, results: dict):
+    # #4: Only save if still running (prevent overwriting failed status)
     await conn.execute(
-        "UPDATE backtest_runs SET status = 'completed', results = $1::jsonb, completed_at = NOW() WHERE id = $2::uuid",
+        "UPDATE backtest_runs SET status = 'completed', results = $1::jsonb, completed_at = NOW() WHERE id = $2::uuid AND status = 'running'",
         json.dumps(results), run_id,
+    )
+
+
+async def update_progress(conn: asyncpg.Connection, run_id: str, progress: str):
+    # #17: Update progress percentage
+    await conn.execute(
+        "UPDATE backtest_runs SET progress = $1 WHERE id = $2::uuid",
+        progress, run_id,
     )
 
 
