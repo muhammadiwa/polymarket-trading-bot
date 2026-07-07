@@ -14,16 +14,27 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/backtesting", tags=["backtesting"])
 
+# #1: Track background tasks for graceful shutdown
+_background_tasks: set[asyncio.Task] = set()
+MAX_CONCURRENT_BACKTESTS = 5
+_semaphore = asyncio.Semaphore(MAX_CONCURRENT_BACKTESTS)
+
 
 @router.post("/run", response_model=BacktestStatus)
 async def start_backtest(body: BacktestRequest, _user: dict = Depends(verify_jwt)):
     """Start a new backtest run."""
+    # #7: Limit concurrent backtests
+    if _semaphore.locked():
+        raise HTTPException(status_code=429, detail="Too many concurrent backtests. Try again later.")
+
     pool = await get_pg_pool()
     async with pool.acquire() as conn:
         run_id = await backtest_repo.create_run(conn, body)
 
-    # Run backtest in background
-    asyncio.create_task(_run_backtest_background(run_id, body))
+    # #1: Track task reference
+    task = asyncio.create_task(_run_backtest_background(run_id, body))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
     return BacktestStatus(run_id=run_id, status="pending")
 

@@ -44,14 +44,16 @@ async def get_run(conn: asyncpg.Connection, run_id: str) -> Optional[dict]:
     return dict(row)
 
 
-async def get_opportunities(conn: asyncpg.Connection, start_date: str, end_date: str) -> list[dict]:
+async def get_opportunities(conn: asyncpg.Connection, start_date: str, end_date: str, limit: int = 100000) -> list[dict]:
+    """Fetch historical opportunities with limit to prevent OOM."""
     rows = await conn.fetch(
         """
         SELECT market_id, spread, score, fill_probability, liquidity, side, detected_at, filter_reason
         FROM opportunities
         WHERE detected_at BETWEEN $1 AND $2
         ORDER BY detected_at ASC
+        LIMIT $3
         """,
-        start_date, end_date,
+        start_date, end_date, limit,
     )
     return [dict(r) for r in rows]

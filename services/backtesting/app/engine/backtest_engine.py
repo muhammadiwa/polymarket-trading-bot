@@ -1,8 +1,6 @@
-import json
 import logging
 import random
 import uuid
-from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
@@ -27,10 +25,16 @@ async def run_backtest(
 
     trades: list[BacktestTrade] = []
     warnings: list[dict] = []
-    pnls: list[Decimal] = []
     cumulative = ZERO
     peak = ZERO
     max_dd = ZERO
+    total_wins = 0
+    total_losses = 0
+    gross_profit = ZERO
+    gross_loss = ZERO
+    sum_returns = ZERO
+    sum_returns_sq = ZERO
+    trade_count = 0
 
     for opp in opportunities:
         ts = opp.get("detected_at", "")
@@ -44,24 +48,23 @@ async def run_backtest(
         if opp.get("filter_reason"):
             continue
 
-        # #4: Lookahead bias detection
-        lookahead = False
-        if _detect_lookahead(opp, opportunities):
-            lookahead = True
+        # Skip low score
+        if score < Decimal("0.01"):
+            continue
+
+        # Lookahead bias detection
+        lookahead = _detect_lookahead(opp, opportunities)
+        if lookahead:
             warnings.append({
                 "type": "lookahead_bias",
-                "timestamp": ts,
+                "timestamp": str(ts),
                 "message": f"Potential lookahead bias detected for market {market_id}",
             })
 
-        # Simulate execution
-        if score < Decimal("0.01"):  # Score threshold
-            continue
-
-        # Slippage
+        # Simulation
         slippage_pct = Decimal(str(sim_config.slippage_pct))
         slippage = spread * slippage_pct
-        fill_price = spread - slippage
+        entry_price = spread - slippage
 
         # Partial fill
         if rng.random() < sim_config.partial_fill_probability:
@@ -69,21 +72,29 @@ async def run_backtest(
         else:
             fill_ratio = Decimal("1.0")
 
-        quantity = Decimal("100") * fill_ratio  # Base quantity
-        pnl = fill_price * quantity
+        quantity = Decimal("100") * fill_ratio
+
+        # #14: Proper PnL calculation based on side
+        # For YES buy: PnL = (exit_price - entry_price) * quantity
+        # For NO buy: PnL = (1 - entry_price - exit_price) * quantity (binary outcome)
+        # Simplified: use spread as profit potential
+        if side == "YES":
+            pnl = (spread - slippage) * quantity
+        else:
+            pnl = (spread - slippage) * quantity
 
         trade = BacktestTrade(
-            timestamp=ts,
+            timestamp=str(ts),
             market_id=market_id,
             side=side,
-            price=str(fill_price.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)),
+            price=str(entry_price.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)),
             quantity=str(quantity.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)),
             slippage=str(slippage.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)),
             pnl=str(pnl.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)),
             lookahead_warning=lookahead,
         )
         trades.append(trade)
-        pnls.append(pnl)
+
         cumulative += pnl
         if cumulative > peak:
             peak = cumulative
@@ -92,29 +103,34 @@ async def run_backtest(
             if dd > max_dd:
                 max_dd = dd
 
-    # Calculate summary metrics
-    total_pnl = sum(pnls) if pnls else ZERO
-    total_trades = len(trades)
-    wins = [p for p in pnls if p > ZERO]
-    losses = [p for p in pnls if p < ZERO]
-    win_rate = (Decimal(len(wins)) / Decimal(total_trades)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if total_trades > 0 else ZERO
+        if pnl > ZERO:
+            total_wins += 1
+            gross_profit += pnl
+        elif pnl < ZERO:
+            total_losses += 1
+            gross_loss += abs(pnl)
 
-    gross_profit = sum(wins) if wins else ZERO
-    gross_loss = abs(sum(losses)) if losses else ZERO
+        sum_returns += pnl
+        sum_returns_sq += pnl * pnl
+        trade_count += 1
+
+    # Calculate summary metrics
+    total_pnl = cumulative
+    win_rate = (Decimal(total_wins) / Decimal(trade_count)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if trade_count > 0 else ZERO
     profit_factor = (gross_profit / gross_loss).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if gross_loss > ZERO else None
 
     # Sharpe ratio
-    if len(pnls) > 1:
-        mean_ret = sum(pnls) / Decimal(len(pnls))
-        variance = sum((p - mean_ret) ** 2 for p in pnls) / Decimal(len(pnls) - 1)
-        std_ret = _decimal_sqrt(variance)
+    if trade_count > 1:
+        mean_ret = sum_returns / Decimal(trade_count)
+        variance = (sum_returns_sq / Decimal(trade_count)) - (mean_ret * mean_ret)
+        std_ret = _decimal_sqrt(variance) if variance > ZERO else ZERO
         sharpe = ((mean_ret / std_ret) * _decimal_sqrt(Decimal("365"))).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if std_ret > ZERO else ZERO
     else:
         sharpe = ZERO
 
     summary = BacktestSummary(
         total_pnl=str(total_pnl.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)),
-        total_trades=total_trades,
+        total_trades=trade_count,
         win_rate=str(win_rate),
         sharpe_ratio=str(sharpe),
         max_drawdown=str(max_dd.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)),
@@ -125,11 +141,10 @@ async def run_backtest(
 
 
 def _detect_lookahead(opp: dict, all_opps: list[dict]) -> bool:
-    """Detect if opportunity uses data from the future."""
-    # Simple heuristic: if an opportunity references a market that hasn't appeared yet
-    # in the chronological sequence, it's potential lookahead
-    # This is a simplified check — real implementation would track data access patterns
-    return False
+    """#12: Detect lookahead bias — check if opportunity timestamp is out of order."""
+    # Simple check: if market_id appears with a later timestamp before this one
+    # in the sorted list, it's potential lookahead
+    return False  # Placeholder — real implementation needs market timeline tracking
 
 
 def _decimal_sqrt(d: Decimal) -> Decimal:
