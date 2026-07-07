@@ -48,6 +48,7 @@ type Executor struct {
 	retryBackoffMax time.Duration
 	semaphore       chan struct{}
 	posSizing       PositionSizingConfig
+	paperSim        *PaperSimulator // #1: Paper trading simulator
 }
 
 type OrderLoggerAdapter interface {
@@ -77,6 +78,7 @@ func NewExecutor(
 	fillMon FillMonitorAdapter,
 	riskEventRepo ports.RiskEventRepository,
 	tradeHandler TradeHistoryHandler,
+	paperSim *PaperSimulator,
 	logger *zap.Logger,
 ) *Executor {
 	return &Executor{
@@ -97,6 +99,7 @@ func NewExecutor(
 		retryBackoffMax: retryBackoffMax,
 		semaphore:       make(chan struct{}, maxConcurrency),
 		posSizing:       DefaultPositionSizingConfig(),
+		paperSim:        paperSim,
 	}
 }
 
@@ -172,6 +175,33 @@ func (e *Executor) Execute(ctx context.Context, opp ports.OpportunityDetected) e
 	}
 
 	e.idempotency.Mark(clientOrderID)
+
+	// #1: Check execution mode — PAPER mode simulates fill, skips real order
+	if e.paperSim != nil {
+		mode := GetExecutionMode(ctx, e.riskPort)
+		if mode == "PAPER" {
+			order := &ports.Order{
+				MarketID: opp.Payload.MarketID,
+				Side:     side,
+				Price:    price,
+				Size:     orderSize, // #1: Use Size, not Quantity
+			}
+			fill := e.paperSim.SimulateFill(ctx, order)
+
+			latencyMs := time.Since(startTime).Milliseconds()
+			e.logger.Info("paper trade simulated",
+				zap.String("opportunity_id", opp.Payload.OpportunityID),
+				zap.String("market_id", opp.Payload.MarketID),
+				zap.Bool("filled", fill.Filled),
+				zap.String("fill_price", fill.FillPrice.String()),
+				zap.String("pnl", fill.PnL.String()),
+				zap.Int64("latency_ms", latencyMs),
+			)
+
+			metrics.OrdersPlaced.Inc() // Count paper trades too
+			return nil // Skip real order placement
+		}
+	}
 
 	orderReq := ports.OrderRequest{
 		OpportunityID: opp.Payload.OpportunityID,

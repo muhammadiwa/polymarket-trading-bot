@@ -124,3 +124,15 @@ func (r *RedisRisk) Ping(ctx context.Context) error {
 func (r *RedisRisk) Close() error {
 	return r.client.Close()
 }
+
+// GetExecutionMode reads the execution mode from Redis.
+func (r *RedisRisk) GetExecutionMode(ctx context.Context) (string, error) {
+	val, err := r.client.Get(ctx, "pqap:execution_mode").Result()
+	if err == redis.Nil {
+		return "PAPER", nil // Default to PAPER (safe mode)
+	}
+	if err != nil {
+		return "", err
+	}
+	return val, nil
+}

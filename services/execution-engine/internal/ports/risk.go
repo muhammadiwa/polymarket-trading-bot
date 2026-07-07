@@ -13,4 +13,5 @@ type RiskDecision struct {
 
 type RiskPort interface {
 	CheckRisk(ctx context.Context, marketID, strategyID string, orderSize decimal.Decimal) (*RiskDecision, error)
+	GetExecutionMode(ctx context.Context) (string, error)
 }

@@ -75,13 +75,13 @@ development_status:
   epic-4-retrospective: done
 
   # Epic 5: Backtesting & Paper Trading
-  epic-5: backlog
-  5-1-backtesting-engine-replay-simulation: backlog
-  5-2-backtesting-metrics-reports-parameter-sweeps: backlog
-  5-3-paper-trading-simulation-separate-pnl: backlog
-  5-4-paper-trading-seamless-live-switch: backlog
-  5-5-replay-mode-speed-control-decision-display: backlog
-  epic-5-retrospective: optional
+  epic-5: in-progress
+  5-1-backtesting-engine-replay-simulation: review
+  5-2-backtesting-metrics-reports-parameter-sweeps: review
+  5-3-paper-trading-simulation-separate-pnl: review
+  5-4-paper-trading-seamless-live-switch: review
+  5-5-replay-mode-speed-control-decision-display: review
+  epic-5-retrospective: done
 
   # Epic 6: AI Strategy Optimization
   epic-6: backlog
