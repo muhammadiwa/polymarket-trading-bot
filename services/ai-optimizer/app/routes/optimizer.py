@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db import get_pool
+from app.engine.overfitting_detector import detect_overfitting
 from app.engine.pattern_analyzer import analyze_trades
 from app.middleware.auth import verify_jwt
 from app.models.optimizer import AnalysisResult, SuggestionListResponse, SuggestionResponse
@@ -53,13 +54,33 @@ async def run_analysis(
     # Run analysis
     patterns = await analyze_trades(trades)
 
-    # Save suggestions
+    # Run overfitting detection and save suggestions
     saved_count = 0
     async with pool.acquire() as conn:
         for pattern in patterns:
             pattern["strategy_id"] = strategy_id
+
+            # Overfitting detection: split data and check for degradation
+            overfitting = detect_overfitting(
+                trades=trades,
+                pattern_type=pattern["pattern_type"],
+                parameter_name=pattern["parameter_name"],
+                split_value=pattern["suggested_value"],
+            )
+            pattern.update(overfitting)
+
             await optimizer_repo.save_suggestion(conn, pattern)
             saved_count += 1
+
+            if overfitting.get("is_overfitting"):
+                logger.warning(
+                    "overfitting detected in suggestion",
+                    extra={
+                        "strategy_id": strategy_id,
+                        "pattern_type": pattern["pattern_type"],
+                        "degradation_pct": float(overfitting["degradation_pct"]),
+                    },
+                )
 
     logger.info("analysis completed", extra={"strategy_id": strategy_id, "patterns": len(patterns), "suggestions": saved_count})
 
