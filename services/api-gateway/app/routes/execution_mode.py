@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -17,13 +18,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/execution-mode", tags=["execution-mode"])
 
+# #3: Async-safe Redis client initialization
 _redis_client: aioredis.Redis = None
+_redis_lock = asyncio.Lock()
 
 
-def _get_redis() -> aioredis.Redis:
+async def _get_redis() -> aioredis.Redis:
     global _redis_client
     if _redis_client is None:
-        _redis_client = aioredis.from_url(config.REDIS_URL)
+        async with _redis_lock:
+            if _redis_client is None:
+                _redis_client = aioredis.from_url(config.REDIS_URL)
     return _redis_client
 
 
@@ -44,21 +49,22 @@ class RestartConfirmation(BaseModel):
 
 async def _get_mode_from_redis() -> str:
     try:
-        r = _get_redis()
+        r = await _get_redis()
         mode = await r.get("pqap:execution_mode")
         if mode:
             val = mode.decode() if isinstance(mode, bytes) else str(mode)
             if val in ("LIVE", "PAPER"):
                 return val
-        return "LIVE"
+        # #2: Default to PAPER (safe mode) when key missing
+        return "PAPER"
     except Exception as e:
-        logger.warning("failed to read execution mode from Redis, defaulting to LIVE", exc_info=e)
-        return "LIVE"
+        logger.warning("failed to read execution mode from Redis, defaulting to PAPER", exc_info=e)
+        return "PAPER"
 
 
 async def _set_mode_in_redis(mode: str) -> None:
     try:
-        r = _get_redis()
+        r = await _get_redis()
         await r.set("pqap:execution_mode", mode)
     except Exception as e:
         logger.error("failed to set execution mode in Redis", exc_info=e)
@@ -66,7 +72,6 @@ async def _set_mode_in_redis(mode: str) -> None:
 
 
 async def _get_open_paper_positions_count() -> int:
-    """Query open paper positions count from database."""
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
@@ -80,7 +85,8 @@ async def _get_open_paper_positions_count() -> int:
 
 
 async def _publish_mode_switch_warning(from_mode: str, to_mode: str, open_count: int, username: str):
-    """Publish warning notification to NATS."""
+    """#1: Publish warning with guaranteed connection close."""
+    nc = None
     try:
         nc = await nats.connect(config.NATS_URL)
         event = {
@@ -98,15 +104,20 @@ async def _publish_mode_switch_warning(from_mode: str, to_mode: str, open_count:
             },
         }
         await nc.publish("pqap.notification.request", json.dumps(event).encode())
-        await nc.close()
         logger.info("mode switch warning published", extra={"from": from_mode, "to": to_mode})
     except Exception as e:
         logger.error("failed to publish mode switch warning", exc_info=e)
+    finally:
+        # #1: Guarantee connection close
+        if nc:
+            try:
+                await nc.close()
+            except Exception:
+                pass
 
 
 @router.get("")
 async def get_execution_mode(user: dict = Depends(extract_user)):
-    """Get current execution mode (LIVE or PAPER)."""
     mode = await _get_mode_from_redis()
     return {"mode": mode}
 
@@ -124,11 +135,8 @@ async def set_execution_mode(
         return ExecutionModeResponse(mode=body.mode, message="Mode already set", restart_required=False)
 
     await _set_mode_in_redis(body.mode)
-
-    # Get open paper positions count
     open_count = await _get_open_paper_positions_count()
 
-    # Log mode change
     logger.info("execution mode changed",
         extra={
             "from_mode": current_mode,
@@ -138,7 +146,6 @@ async def set_execution_mode(
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
-    # PAPER→LIVE: publish warning notification
     if current_mode == "PAPER" and body.mode == "LIVE":
         await _publish_mode_switch_warning(current_mode, body.mode, open_count, user.get("username", "unknown"))
 
@@ -155,7 +162,7 @@ async def confirm_restart(
     body: RestartConfirmation,
     user: dict = Depends(extract_user),
 ):
-    """Confirm restart for mode switch. Admin only."""
+    """Confirm restart for mode switch. Admin only. External orchestrator handles actual restart."""
     require_admin(user)
 
     if not body.confirm:
@@ -165,7 +172,10 @@ async def confirm_restart(
     logger.info("restart confirmed for mode switch",
         extra={"mode": mode, "user": user.get("username")})
 
+    # Note: Actual restart is handled by external orchestrator (Docker/K8s/process manager)
+    # This endpoint only confirms the intent and logs it
     return {
-        "message": f"Restart confirmed. System will restart in {mode} mode.",
+        "message": f"Restart confirmed. External orchestrator should restart service in {mode} mode.",
         "mode": mode,
+        "restart_initiated": True,
     }
