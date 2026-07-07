@@ -28,92 +28,174 @@ export default function ReplayPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
 
-  const startReplay = useCallback(async () => {
+  const cleanup = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    if (sessionIdRef.current) {
+      // #3: Delete server session on cleanup
+      fetch(`/api/replay/${sessionIdRef.current}`, {
+        method: "DELETE",
+        credentials: "include",
+      }).catch(() => {});
+      sessionIdRef.current = null;
+      setSessionId(null);
+    }
+  }, []);
+
+  const startReplay = useCallback(async (speedOverride?: number) => {
+    cleanup();
     setLoading(true);
     setError(null);
     setDecisions([]);
+
+    const currentSpeed = speedOverride ?? speed;
 
     try {
       const res = await fetch("/api/replay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ strategy_id: "default", start_date: startDate, end_date: endDate, speed }),
+        body: JSON.stringify({ strategy_id: "default", start_date: startDate, end_date: endDate, speed: currentSpeed }),
       });
 
       if (!res.ok) {
-        throw new Error("Failed to start replay");
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Failed to start replay");
       }
 
       const data = await res.json();
       setSessionId(data.session_id);
+      sessionIdRef.current = data.session_id;
       setPlaying(true);
 
-      // Start SSE stream
-      const es = new EventSource(`/api/replay/${data.session_id}/events`);
-      eventSourceRef.current = es;
-
-      es.addEventListener("decision", (e) => {
-        const decision = JSON.parse(e.data);
-        setDecisions((prev) => [...prev, { ...decision, timestamp: new Date().toISOString() }]);
+      // #1: Use fetch with ReadableStream for auth support
+      const tokenRes = await fetch("/api/replay/" + data.session_id + "/events", {
+        credentials: "include",
       });
 
-      es.addEventListener("done", () => {
-        setPlaying(false);
-        es.close();
-      });
+      if (!tokenRes.ok) {
+        throw new Error("Failed to connect to replay stream");
+      }
 
-      es.onerror = () => {
-        setPlaying(false);
-        es.close();
+      const reader = tokenRes.body?.getReader();
+      if (!reader) throw new Error("No stream reader");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      const processStream = async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (line.startsWith("event: ")) {
+                const eventType = line.slice(7).trim();
+                // Next line should be data
+              } else if (line.startsWith("data: ")) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  if (data.market_id) {
+                    setDecisions((prev) => [...prev, { ...data, timestamp: data.timestamp || new Date().toISOString() }]);
+                  }
+                } catch {
+                  // Ignore parse errors
+                }
+              }
+            }
+          }
+        } finally {
+          setPlaying(false);
+        }
       };
+
+      processStream();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start replay");
+      setPlaying(false);
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, speed]);
+  }, [startDate, endDate, speed, cleanup]);
 
   const handlePlayPause = useCallback(() => {
     if (playing) {
-      eventSourceRef.current?.close();
+      cleanup();
       setPlaying(false);
-    } else if (sessionId) {
-      startReplay();
     } else {
       startReplay();
     }
-  }, [playing, sessionId, startReplay]);
+  }, [playing, startReplay, cleanup]);
+
+  // #2: Speed change restarts replay with new speed
+  const handleSpeedChange = useCallback((newSpeed: number) => {
+    setSpeed(newSpeed);
+    if (playing && sessionIdRef.current) {
+      // Update speed on server
+      fetch(`/api/replay/${sessionIdRef.current}/speed?speed=${newSpeed}`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
+    }
+  }, [playing]);
 
   const handleStep = useCallback(async () => {
-    if (!sessionId) {
-      await startReplay();
-      return;
+    if (!sessionIdRef.current) {
+      // Start a new session first
+      setLoading(true);
+      try {
+        const res = await fetch("/api/replay", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ strategy_id: "default", start_date: startDate, end_date: endDate, speed: 1 }),
+        });
+        if (!res.ok) throw new Error("Failed to start replay");
+        const data = await res.json();
+        sessionIdRef.current = data.session_id;
+        setSessionId(data.session_id);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to start replay");
+        setLoading(false);
+        return;
+      }
+      setLoading(false);
     }
 
     try {
-      const res = await fetch(`/api/replay/${sessionId}/step`, {
+      const res = await fetch(`/api/replay/${sessionIdRef.current}/step`, {
         method: "POST",
         credentials: "include",
       });
       const data = await res.json();
-      if (data.event) {
-        setDecisions((prev) => [...prev, { ...data.event.data, timestamp: data.event.timestamp }]);
+      if (data.events) {
+        for (const event of data.events) {
+          if (event.data?.market_id) {
+            setDecisions((prev) => [...prev, { ...event.data, timestamp: event.timestamp }]);
+          }
+        }
       }
       if (!data.has_more) {
         setSessionId(null);
+        sessionIdRef.current = null;
       }
     } catch (err) {
       console.error("Step failed:", err);
     }
-  }, [sessionId, startReplay]);
+  }, [startDate, endDate]);
 
   useEffect(() => {
-    return () => {
-      eventSourceRef.current?.close();
-    };
-  }, []);
+    return cleanup;
+  }, [cleanup]);
 
   return (
     <div className="space-y-6 p-6">
@@ -141,7 +223,7 @@ export default function ReplayPage() {
         speed={speed}
         onPlayPause={handlePlayPause}
         onStep={handleStep}
-        onSpeedChange={setSpeed}
+        onSpeedChange={handleSpeedChange}
         disabled={loading}
       />
 
