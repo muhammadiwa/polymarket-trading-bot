@@ -10,6 +10,13 @@ logger = logging.getLogger(__name__)
 
 ZERO = Decimal("0")
 
+# #11: Configurable thresholds for pattern discovery
+SCORE_SPLIT_THRESHOLD = Decimal("0.02")
+SIZE_SPLIT_THRESHOLD = Decimal("50")
+MIN_SAMPLES_PER_BUCKET = 5
+MIN_TOTAL_TRADES = 10
+MIN_RATE_DELTA = 0.10  # #7: Minimum win rate delta to avoid spurious patterns
+
 
 async def analyze_trades(trades: list[dict]) -> list[dict]:
     """Analyze trades and return patterns with statistical significance."""
@@ -17,7 +24,7 @@ async def analyze_trades(trades: list[dict]) -> list[dict]:
 
     # Filter filled trades only
     filled = [t for t in trades if t.get("fill_status") in ("FILLED", "PARTIAL_FILL")]
-    if len(filled) < 10:
+    if len(filled) < MIN_TOTAL_TRADES:
         return patterns
 
     wins = [t for t in filled if Decimal(str(t.get("pnl", "0"))) > ZERO]
@@ -58,7 +65,7 @@ def _analyze_time_of_day(trades: list, wins: list, losses: list) -> Optional[dic
         if Decimal(str(t.get("pnl", "0"))) > ZERO:
             hour_wins[hour] = hour_wins.get(hour, 0) + 1
 
-    if len(hour_total) < 3:
+    if len(hour_total) < MIN_SAMPLES_PER_BUCKET:
         return None
 
     # Find best and worst hours
@@ -69,6 +76,10 @@ def _analyze_time_of_day(trades: list, wins: list, losses: list) -> Optional[dic
     worst_rate = hour_wins.get(worst_hour, 0) / hour_total[worst_hour] if hour_total[worst_hour] > 0 else 0
 
     if best_rate <= worst_rate:
+        return None
+
+    # #7: Minimum delta threshold to avoid spurious patterns from zero-PnL trades
+    if best_rate - worst_rate < MIN_RATE_DELTA:
         return None
 
     # Chi-squared test
@@ -104,11 +115,11 @@ def _analyze_time_of_day(trades: list, wins: list, losses: list) -> Optional[dic
 
 def _analyze_score_threshold(trades: list, wins: list, losses: list) -> Optional[dict]:
     """Analyze win rate by score threshold."""
-    # Group by score buckets
-    low_score = [t for t in trades if Decimal(str(t.get("score", "0"))) < Decimal("0.02")]
-    high_score = [t for t in trades if Decimal(str(t.get("score", "0"))) >= Decimal("0.02")]
+    # #11: Use configurable threshold for score split
+    low_score = [t for t in trades if Decimal(str(t.get("score", "0"))) < SCORE_SPLIT_THRESHOLD]
+    high_score = [t for t in trades if Decimal(str(t.get("score", "0"))) >= SCORE_SPLIT_THRESHOLD]
 
-    if len(low_score) < 5 or len(high_score) < 5:
+    if len(low_score) < MIN_SAMPLES_PER_BUCKET or len(high_score) < MIN_SAMPLES_PER_BUCKET:
         return None
 
     low_wins = sum(1 for t in low_score if Decimal(str(t.get("pnl", "0"))) > ZERO)
@@ -148,11 +159,11 @@ def _analyze_score_threshold(trades: list, wins: list, losses: list) -> Optional
 
 def _analyze_position_sizing(trades: list, wins: list, losses: list) -> Optional[dict]:
     """Analyze PnL by position size."""
-    # Group by size buckets
-    small = [t for t in trades if Decimal(str(t.get("quantity", "0"))) < Decimal("50")]
-    large = [t for t in trades if Decimal(str(t.get("quantity", "0"))) >= Decimal("50")]
+    # #11: Use configurable threshold for size split
+    small = [t for t in trades if Decimal(str(t.get("quantity", "0"))) < SIZE_SPLIT_THRESHOLD]
+    large = [t for t in trades if Decimal(str(t.get("quantity", "0"))) >= SIZE_SPLIT_THRESHOLD]
 
-    if len(small) < 5 or len(large) < 5:
+    if len(small) < MIN_SAMPLES_PER_BUCKET or len(large) < MIN_SAMPLES_PER_BUCKET:
         return None
 
     small_pnl = sum(Decimal(str(t.get("pnl", "0"))) for t in small) / len(small)

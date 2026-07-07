@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/optimizer", tags=["optimizer"])
 
+# #3: Simple in-memory rate limiter per strategy
+_analysis_cooldown: dict[str, float] = {}
+COOLDOWN_SECONDS = 60  # Minimum 60 seconds between analyses per strategy
+
 
 @router.post("/analyze", response_model=AnalysisResult)
 async def run_analysis(
@@ -21,6 +25,18 @@ async def run_analysis(
     _user: dict = Depends(verify_jwt),
 ):
     """Run pattern analysis on trade history for a strategy."""
+    # #3: Rate limit per strategy
+    import time
+    now = time.time()
+    last_run = _analysis_cooldown.get(strategy_id, 0)
+    if now - last_run < COOLDOWN_SECONDS:
+        remaining = int(COOLDOWN_SECONDS - (now - last_run))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Analysis for this strategy was run recently. Try again in {remaining} seconds.",
+        )
+    _analysis_cooldown[strategy_id] = now
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         # Check minimum trades
