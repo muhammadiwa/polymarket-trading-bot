@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.db import get_pg_pool, get_ts_pool
 from app.engine.backtest_engine import run_backtest
 from app.middleware.auth import verify_jwt
-from app.models.backtest import BacktestRequest, BacktestResults, BacktestStatus, SweepRequest
+from app.models.backtest import BacktestRequest, BacktestResults, BacktestStatus, SweepRequest, SweepResults
 from app.repos import backtest_repo
 
 logger = logging.getLogger(__name__)
@@ -53,12 +54,13 @@ async def _run_backtest_background(run_id: str, req: BacktestRequest):
             opportunities = await backtest_repo.get_opportunities(conn, req.start_date, req.end_date)
 
         if not opportunities:
-            # #8: Add warning for empty dataset
+            # #8, #13: Add warning and include all result fields
             async with pg_pool.acquire() as conn:
                 await backtest_repo.save_results(conn, run_id, {
-                    "summary": {"total_pnl": "0", "total_trades": 0, "win_rate": "0", "sharpe_ratio": "0", "max_drawdown": "0", "profit_factor": None},
+                    "summary": {"total_pnl": "0", "total_trades": 0, "win_rate": "0", "sharpe_ratio": "0", "max_drawdown": "0", "profit_factor": None, "var_95": "0"},
                     "trades": [],
                     "warnings": [{"type": "no_data", "message": "No opportunities found for the given date range."}],
+                    "daily_pnl": [],
                 })
             return
 
@@ -69,7 +71,9 @@ async def _run_backtest_background(run_id: str, req: BacktestRequest):
 
         results = await run_backtest(opportunities, req.simulation)
 
+        # #3: Update progress on completion
         async with pg_pool.acquire() as conn:
+            await backtest_repo.update_progress(conn, run_id, f"100% — {results.summary.total_trades} trades")
             await backtest_repo.save_results(conn, run_id, results.model_dump())
 
         logger.info("backtest completed", extra={"run_id": run_id, "trades": results.summary.total_trades})
@@ -145,19 +149,25 @@ async def get_report(run_id: str, _user: dict = Depends(verify_jwt)):
     return report
 
 
-@router.post("/sweep")
+@router.post("/sweep", response_model=SweepResults)
 async def run_sweep(body: SweepRequest, _user: dict = Depends(verify_jwt)):
     """#3: Run parameter sweep — test multiple configurations in batch."""
     import itertools
 
+    # #9: Validate parameter names against SimulationConfig
+    from app.models.backtest import SimulationConfig
+    valid_fields = set(SimulationConfig.model_fields.keys())
+    for p in body.parameters:
+        if p.name not in valid_fields:
+            raise HTTPException(status_code=400, detail=f"Invalid parameter name: {p.name}. Valid: {valid_fields}")
+
     # Generate parameter combinations
     param_ranges = {}
     for p in body.parameters:
-        values = []
-        v = p.min_value
-        while v <= p.max_value + 0.0001:  # float tolerance
-            values.append(round(v, 10))
-            v += p.step
+        # #7: Use integer-based range to avoid float accumulation
+        n_steps = int(round((p.max_value - p.min_value) / p.step)) + 1
+        values = [round(p.min_value + i * p.step, 10) for i in range(n_steps)]
+        values = [v for v in values if v <= p.max_value + 0.0001]
         param_ranges[p.name] = values
 
     if not param_ranges:
@@ -170,6 +180,10 @@ async def run_sweep(body: SweepRequest, _user: dict = Depends(verify_jwt)):
     if len(combos) > 1000:
         raise HTTPException(status_code=400, detail=f"Too many combinations ({len(combos)}). Max 1000.")
 
+    # #4: Acquire semaphore for sweep
+    if _semaphore.locked():
+        raise HTTPException(status_code=429, detail="Too many concurrent backtests/sweeps.")
+
     # Fetch opportunities once
     pg_pool = await get_pg_pool()
     ts_pool = await get_ts_pool()
@@ -178,33 +192,45 @@ async def run_sweep(body: SweepRequest, _user: dict = Depends(verify_jwt)):
         opportunities = await backtest_repo.get_opportunities(conn, body.start_date, body.end_date)
 
     if not opportunities:
-        return {"results": [], "best": None, "total_configs": 0}
+        return SweepResults(results=[], best=None, total_configs=0)
 
-    # Run all configurations
+    # Run all configurations with timeout
     sweep_results = []
-    for combo in combos:
-        config_dict = dict(zip(keys, combo))
-        sim_config = body.simulation.model_copy(update=config_dict)
-        results = await run_backtest(opportunities, sim_config)
-        sweep_results.append({
-            "parameters": config_dict,
-            "summary": results.summary.model_dump(),
-        })
+    try:
+        # #5: 1 hour timeout for sweeps
+        async def _run_sweep():
+            for combo in combos:
+                config_dict = dict(zip(keys, combo))
+                sim_config = body.simulation.model_copy(update=config_dict)
+                results = await run_backtest(opportunities, sim_config)
+                sweep_results.append({
+                    "parameters": config_dict,
+                    "summary": results.summary.model_dump(),
+                })
 
-    # Rank by selected metric
+        await asyncio.wait_for(_run_sweep(), timeout=3600)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=408, detail="Sweep timed out after 1 hour")
+
+    # #8: Rank by selected metric with NaN handling
     def sort_key(item):
         val = item["summary"].get(body.rank_by)
         if val is None or val == "null":
             return float("-inf")
         try:
-            return float(val)
+            f = float(val)
+            if math.isnan(f) or math.isinf(f):
+                return float("-inf")
+            return f
         except (ValueError, TypeError):
             return float("-inf")
 
     sweep_results.sort(key=sort_key, reverse=True)
 
-    return {
-        "results": sweep_results,
-        "best": sweep_results[0] if sweep_results else None,
-        "total_configs": len(sweep_results),
-    }
+    # #15: Return as SweepResults model
+    best = sweep_results[0] if sweep_results else None
+    return SweepResults(
+        results=[{"parameters": r["parameters"], "summary": BacktestSummary(**r["summary"])} for r in sweep_results],
+        best={"parameters": best["parameters"], "summary": BacktestSummary(**best["summary"])} if best else None,
+        total_configs=len(sweep_results),
+    )

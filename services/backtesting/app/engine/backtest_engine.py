@@ -37,7 +37,7 @@ async def run_backtest(
     sum_returns = ZERO
     sum_returns_sq = ZERO
     trade_count = 0
-    daily_pnl: dict[str, Decimal] = defaultdict(ZERO)  # #1: Daily PnL tracking
+    daily_pnl: dict[str, Decimal] = defaultdict(lambda: ZERO)  # #1: Fix defaultdict crash
 
     for opp in opportunities:
         ts = opp.get("detected_at", "")
@@ -74,7 +74,9 @@ async def run_backtest(
             fill_ratio = Decimal("1.0")
 
         quantity = Decimal("100") * fill_ratio
-        pnl = (spread - slippage) * quantity
+
+        # #10: Use entry_price in PnL calculation
+        pnl = entry_price * quantity
 
         trade = BacktestTrade(
             timestamp=str(ts),
@@ -120,7 +122,10 @@ async def run_backtest(
     if trade_count > 1:
         mean_ret = sum_returns / Decimal(trade_count)
         variance = (sum_returns_sq / Decimal(trade_count)) - (mean_ret * mean_ret)
-        std_ret = _decimal_sqrt(variance) if variance > ZERO else ZERO
+        # #6: Clamp variance to prevent negative from Decimal rounding
+        if variance < ZERO:
+            variance = ZERO
+        std_ret = _decimal_sqrt(variance)
         sharpe = ((mean_ret / std_ret) * _decimal_sqrt(Decimal("365"))).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if std_ret > ZERO else ZERO
     else:
         sharpe = ZERO
