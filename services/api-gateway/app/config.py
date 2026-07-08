@@ -30,6 +30,7 @@ class Config:
     ARB_ENGINE_URL: str = os.getenv("ARB_ENGINE_URL", "http://localhost:8092")
     EXECUTION_ENGINE_URL: str = os.getenv("EXECUTION_ENGINE_URL", "http://localhost:8093")
     POSITION_MANAGER_URL: str = os.getenv("POSITION_MANAGER_URL", "http://localhost:8095")
+    PROMETHEUS_URL: str = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
 
 
 config = Config()

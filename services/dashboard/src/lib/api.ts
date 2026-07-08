@@ -5,6 +5,11 @@ import type {
   RiskParameterUpdate,
   RiskStatus,
   SystemHealth,
+  SystemConfig,
+  SystemConfigListResponse,
+  SystemConfigUpdate,
+  ConfigAuditLogListResponse,
+  AdminHealthStatus,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -238,4 +243,36 @@ export async function fetchOrderbook(marketId: string): Promise<import("@/types"
 
 export async function fetchRecentTrades(marketId: string, limit = 100): Promise<{ trades: import("@/types").RecentTrade[]; count: number }> {
   return request<{ trades: import("@/types").RecentTrade[]; count: number }>(`/api/orderbook/${marketId}/trades?limit=${limit}`);
+}
+
+// Admin Config API
+export async function fetchAdminConfigs(category?: string): Promise<SystemConfigListResponse> {
+  const params = category ? `?category=${category}` : "";
+  return request<SystemConfigListResponse>(`/api/admin/config${params}`);
+}
+
+export async function fetchAdminConfig(key: string, unmask = false): Promise<SystemConfig> {
+  const params = unmask ? "?unmask=true" : "";
+  return request<SystemConfig>(`/api/admin/config/${key}${params}`);
+}
+
+export async function updateAdminConfig(key: string, update: SystemConfigUpdate): Promise<SystemConfig> {
+  return putRequest<SystemConfig>(`/api/admin/config/${key}`, update);
+}
+
+export async function fetchConfigAuditLogs(key?: string, limit = 50, offset = 0): Promise<ConfigAuditLogListResponse> {
+  const params = new URLSearchParams();
+  if (key) params.set("key", key);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  return request<ConfigAuditLogListResponse>(`/api/admin/config/audit/logs?${params.toString()}`);
+}
+
+// Admin Health API
+export async function fetchAdminHealth(): Promise<AdminHealthStatus> {
+  return request<AdminHealthStatus>("/api/admin/health");
+}
+
+export async function fetchAdminHealthAlerts(): Promise<{ alerts: import("@/types").HealthAlert[]; total: number }> {
+  return request<{ alerts: import("@/types").HealthAlert[]; total: number }>("/api/admin/health/alerts");
 }

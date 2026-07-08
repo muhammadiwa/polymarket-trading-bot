@@ -137,3 +137,57 @@ export interface RecentTrade {
   side: string;
   timestamp: string;
 }
+
+// Admin Panel Types
+export interface SystemConfig {
+  id: string;
+  configKey: string;
+  configValue: any;
+  category: "api_keys" | "risk_defaults" | "notification_settings";
+  description: string | null;
+  isSensitive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+export interface SystemConfigListResponse {
+  configs: SystemConfig[];
+  total: number;
+}
+
+export interface SystemConfigUpdate {
+  configValue: any;
+  reason?: string;
+  expectedUpdatedAt?: string;
+}
+
+export interface ConfigAuditLog {
+  id: string;
+  configKey: string;
+  oldValue: any;
+  newValue: any;
+  changedBy: string;
+  changedAt: string;
+  reason: string | null;
+}
+
+export interface ConfigAuditLogListResponse {
+  logs: ConfigAuditLog[];
+  total: number;
+}
+
+export interface HealthAlert {
+  id: string;
+  service: string;
+  metric: string;
+  threshold: number;
+  currentValue: number;
+  severity: "warning" | "critical";
+  triggeredAt: string;
+  message: string;
+}
+
+export interface AdminHealthStatus extends SystemHealth {
+  alerts: HealthAlert[];
+}

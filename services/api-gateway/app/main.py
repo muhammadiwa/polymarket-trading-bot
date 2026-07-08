@@ -14,6 +14,7 @@ from app.routes.risk import router as risk_router
 from app.routes.trades import router as trades_router
 from app.routes.ws import router as ws_router
 from app.routes.health import router as health_router
+from app.routes.health import admin_health_router, ws_router as health_ws_router
 from app.routes.health import close_redis_pool, close_http_client
 from app.routes.notifications import router as notifications_router
 from app.routes.opportunities import router as opportunities_router
@@ -72,11 +73,13 @@ app.add_middleware(CSRFMiddleware)
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(admin_health_router)
 app.include_router(trades_router)
 app.include_router(portfolio_router)
 app.include_router(risk_router)
 app.include_router(ws_router)
 app.include_router(health_router)
+app.include_router(health_ws_router)
 app.include_router(opportunities_router)
 app.include_router(notifications_router)
 app.include_router(orderbook_router)

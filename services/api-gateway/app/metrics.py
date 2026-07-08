@@ -103,3 +103,35 @@ OPPORTUNITY_QUERY_LATENCY = Histogram(
     "Opportunity query latency in milliseconds",
     buckets=[5, 10, 25, 50, 100, 250, 500, 1000],
 )
+
+# Admin panel metrics
+ADMIN_CONFIG_CHANGES_TOTAL = Counter(
+    "pqap_admin_config_changes_total",
+    "Total config changes made",
+)
+
+ADMIN_CONFIG_VALIDATION_ERRORS_TOTAL = Counter(
+    "pqap_admin_config_validation_errors_total",
+    "Total config validation failures",
+)
+
+ADMIN_HEALTH_CHECKS_TOTAL = Counter(
+    "pqap_admin_health_checks_total",
+    "Total admin health check requests",
+)
+
+ADMIN_HEALTH_CHECK_LATENCY = Histogram(
+    "pqap_admin_health_check_latency_ms",
+    "Admin health check latency in milliseconds",
+    buckets=[5, 10, 25, 50, 100, 250, 500, 1000],
+)
+
+ADMIN_ACTIVE_ALERTS = Gauge(
+    "pqap_admin_active_alerts_total",
+    "Number of active health alerts",
+)
+
+ADMIN_WS_CONNECTIONS = Gauge(
+    "pqap_admin_ws_connections_total",
+    "Active admin WebSocket connections",
+)
