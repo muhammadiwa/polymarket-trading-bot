@@ -178,11 +178,28 @@ def _row_to_trade(row: asyncpg.Record) -> dict:
         "id": str(row["id"]),
         "market_id": row["market_id"],
         "side": row["side"],
-        "entry_price": _safe_decimal(row["entry_price"]),
-        "exit_price": _safe_decimal(row["exit_price"]),
-        "quantity": _safe_decimal(row["quantity"]),
-        "pnl": _safe_decimal(row["pnl"]),
-        "fill_status": row["fill_status"],
-        "fill_timestamp": row["fill_timestamp"],
-        "strategy_id": row["strategy_id"],
+        "entry_price": _safe_decimal(row.get("entry_price")),
+        "exit_price": _safe_decimal(row.get("exit_price")),
+        "quantity": _safe_decimal(row.get("quantity")),
+        "pnl": _safe_decimal(row.get("pnl")),
+        "fill_status": row.get("fill_status"),
+        "fill_timestamp": row.get("fill_timestamp"),
+        "strategy_id": row.get("strategy_id"),
+        "slippage_pct": _safe_decimal(row.get("slippage_pct")),
     }
+
+
+async def get_trades(conn: asyncpg.Connection, limit: int = 500) -> list[dict]:
+    """Get recent filled trades for analysis."""
+    rows = await conn.fetch(
+        """
+        SELECT id, market_id, side, entry_price, exit_price, quantity, pnl,
+               fill_status, fill_timestamp, strategy_id, slippage_pct
+        FROM trades
+        WHERE fill_status IN ('FILLED', 'PARTIAL_FILL')
+        ORDER BY fill_timestamp DESC
+        LIMIT $1
+        """,
+        limit,
+    )
+    return [_row_to_trade(r) for r in rows]

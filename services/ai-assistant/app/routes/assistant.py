@@ -7,6 +7,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Response
 
+from app.config import config
 from app.db import get_pool
 from app.engine.decision_explainer import explain_trade
 from app.engine.llm_client import LLMClient
@@ -200,7 +201,11 @@ async def suggest_risk_params(
     """Generate conservative risk parameter suggestions based on current state.
     Read-only — suggestions are NOT auto-applied. User must manually update.
     """
-    await _check_rate_limit(user.get("user_id", ""))
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing user_id in token")
+    if not await _check_rate_limit(user_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
 
     # Fetch current risk state from risk-manager API
     risk_state = await _get_risk_state()
