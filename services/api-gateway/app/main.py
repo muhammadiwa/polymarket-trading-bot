@@ -20,6 +20,8 @@ from app.routes.notifications import router as notifications_router
 from app.routes.opportunities import router as opportunities_router
 from app.routes.auth import router as auth_router
 from app.routes.admin import router as admin_router
+from app.routes.logs import router as logs_router
+from app.routes.database import router as database_router
 from app.routes.execution_mode import router as execution_mode_router
 from app.routes.orderbook import router as orderbook_router, init_client as init_orderbook_client, close_client as close_orderbook_client
 from app.middleware.csrf import CSRFMiddleware
@@ -74,6 +76,8 @@ app.add_middleware(CSRFMiddleware)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(admin_health_router)
+app.include_router(logs_router)
+app.include_router(database_router)
 app.include_router(trades_router)
 app.include_router(portfolio_router)
 app.include_router(risk_router)

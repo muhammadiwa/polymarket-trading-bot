@@ -191,3 +191,68 @@ export interface HealthAlert {
 export interface AdminHealthStatus extends SystemHealth {
   alerts: HealthAlert[];
 }
+
+// Log Viewer Types
+export interface SystemLog {
+  id: string;
+  timestamp: string;
+  level: "debug" | "info" | "warn" | "error" | "fatal";
+  service: string;
+  requestId: string | null;
+  message: string;
+  context: Record<string, any> | null;
+}
+
+export interface LogQueryParams {
+  level?: string;
+  service?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface LogQueryResponse {
+  logs: SystemLog[];
+  total: number;
+  hasMore: boolean;
+}
+
+// Database Management Types
+export interface BackupInfo {
+  id: string;
+  filename: string;
+  filePath: string;
+  sizeBytes: number;
+  createdAt: string;
+  status: "completed" | "failed" | "in_progress";
+  durationMs: number | null;
+  triggeredBy: string;
+  errorMessage: string | null;
+}
+
+export interface BackupListResponse {
+  backups: BackupInfo[];
+  total: number;
+}
+
+export interface CleanupRequest {
+  retentionDays: number;
+  tables?: string[];
+}
+
+export interface CleanupResponse {
+  deletedRows: Record<string, number>;
+  freedBytes: number;
+}
+
+export interface DatabaseStats {
+  totalSizeBytes: number;
+  tableSizes: Record<string, number>;
+  oldestLogTimestamp: string | null;
+  newestLogTimestamp: string | null;
+  totalLogEntries: number;
+  totalTrades: number;
+  totalPositions: number;
+}

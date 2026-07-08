@@ -135,3 +135,48 @@ ADMIN_WS_CONNECTIONS = Gauge(
     "pqap_admin_ws_connections_total",
     "Active admin WebSocket connections",
 )
+
+# Log viewer metrics
+ADMIN_LOG_QUERIES_TOTAL = Counter(
+    "pqap_admin_log_queries_total",
+    "Total log queries",
+)
+
+ADMIN_LOG_QUERY_LATENCY = Histogram(
+    "pqap_admin_log_query_latency_ms",
+    "Log query latency in milliseconds",
+    buckets=[5, 10, 25, 50, 100, 250, 500, 1000],
+)
+
+ADMIN_LOG_INGESTION_TOTAL = Counter(
+    "pqap_admin_log_ingestion_total",
+    "Total log entries ingested",
+)
+
+# Database management metrics
+ADMIN_BACKUP_TOTAL = Counter(
+    "pqap_admin_backup_total",
+    "Total backups created",
+)
+
+ADMIN_BACKUP_DURATION = Histogram(
+    "pqap_admin_backup_duration_ms",
+    "Backup duration in milliseconds",
+    buckets=[1000, 5000, 10000, 30000, 60000, 300000, 600000],
+)
+
+ADMIN_RESTORE_TOTAL = Counter(
+    "pqap_admin_restore_total",
+    "Total restores performed",
+)
+
+ADMIN_CLEANUP_TOTAL = Counter(
+    "pqap_admin_cleanup_total",
+    "Total cleanup operations",
+)
+
+ADMIN_CLEANUP_ROWS_DELETED = Counter(
+    "pqap_admin_cleanup_rows_deleted_total",
+    "Total rows deleted by cleanup",
+    ["table"],
+)

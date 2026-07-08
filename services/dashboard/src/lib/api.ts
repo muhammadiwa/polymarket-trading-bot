@@ -10,6 +10,12 @@ import type {
   SystemConfigUpdate,
   ConfigAuditLogListResponse,
   AdminHealthStatus,
+  LogQueryParams,
+  LogQueryResponse,
+  BackupInfo,
+  BackupListResponse,
+  CleanupResponse,
+  DatabaseStats,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -275,4 +281,46 @@ export async function fetchAdminHealth(): Promise<AdminHealthStatus> {
 
 export async function fetchAdminHealthAlerts(): Promise<{ alerts: import("@/types").HealthAlert[]; total: number }> {
   return request<{ alerts: import("@/types").HealthAlert[]; total: number }>("/api/admin/health/alerts");
+}
+
+// Admin Log Viewer API
+export async function fetchAdminLogs(params: LogQueryParams): Promise<LogQueryResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.level) searchParams.set("level", params.level);
+  if (params.service) searchParams.set("service", params.service);
+  if (params.startDate) searchParams.set("start_date", params.startDate);
+  if (params.endDate) searchParams.set("end_date", params.endDate);
+  if (params.search) searchParams.set("search", params.search);
+  searchParams.set("limit", String(params.limit || 100));
+  searchParams.set("offset", String(params.offset || 0));
+  return request<LogQueryResponse>(`/api/admin/logs?${searchParams.toString()}`);
+}
+
+export async function fetchLogServices(): Promise<string[]> {
+  return request<string[]>("/api/admin/logs/services");
+}
+
+// Admin Database Management API
+export async function createBackup(): Promise<BackupInfo> {
+  return postRequest<BackupInfo>("/api/admin/database/backup");
+}
+
+export async function fetchBackups(): Promise<BackupListResponse> {
+  return request<BackupListResponse>("/api/admin/database/backups");
+}
+
+export async function getRestoreConfirmToken(backupId: string): Promise<{ confirmationToken: string }> {
+  return postRequest<{ confirmationToken: string }>(`/api/admin/database/restore/${backupId}/confirm-token`);
+}
+
+export async function restoreBackup(backupId: string, confirmationToken: string): Promise<{ status: string }> {
+  return postRequest<{ status: string }>(`/api/admin/database/restore/${backupId}`, { confirmationToken });
+}
+
+export async function cleanupDatabase(retentionDays: number, tables?: string[]): Promise<CleanupResponse> {
+  return postRequest<CleanupResponse>("/api/admin/database/cleanup", { retentionDays, tables });
+}
+
+export async function fetchDatabaseStats(): Promise<DatabaseStats> {
+  return request<DatabaseStats>("/api/admin/database/stats");
 }
