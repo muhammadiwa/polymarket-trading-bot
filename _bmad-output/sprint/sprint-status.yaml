@@ -88,7 +88,7 @@ development_status:
   6-1-ai-optimizer-pattern-analysis-suggestions: review
   6-2-ai-optimizer-ab-testing-overfitting-detection: backlog
   6-3-ai-assistant-performance-qa-decision-explanation: backlog
-  6-4-ai-assistant-read-only-safety-risk-parameter-suggestions: backlog
+  6-4-ai-assistant-read-only-safety-risk-parameter-suggestions: ready-for-dev
   epic-6-retrospective: optional
 
   # Epic 7: Scaling & Enterprise
