@@ -12,6 +12,9 @@ class Config:
     LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
+    # Risk Manager API
+    RISK_MANAGER_URL: str = os.getenv("RISK_MANAGER_URL", "http://risk-manager:8080")
+
 
 config = Config()
 
