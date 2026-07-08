@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -84,7 +85,6 @@ async def query_logs(
     require_admin(user)
     ADMIN_LOG_QUERIES_TOTAL.inc()
 
-    import time
     start_time = time.monotonic()
 
     pool = await get_pool()

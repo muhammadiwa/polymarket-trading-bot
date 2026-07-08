@@ -1,8 +1,6 @@
 import asyncio
 import gzip
 import logging
-import os
-import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -217,11 +215,13 @@ class DatabaseService:
         async with pool.acquire() as conn:
             for table, timestamp_col in target_tables.items():
                 try:
+                    # Table and column names are from our whitelist, not user input
                     result = await conn.execute(
                         f"""
                         DELETE FROM {table}
-                        WHERE {timestamp_col} < NOW() - INTERVAL '{retention_days} days'
-                        """
+                        WHERE {timestamp_col} < NOW() - $1::interval
+                        """,
+                        f"{retention_days} days",
                     )
                     # Parse "DELETE N" response
                     count = int(result.split()[-1]) if result else 0
