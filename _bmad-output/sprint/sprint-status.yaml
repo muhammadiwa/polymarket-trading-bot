@@ -86,10 +86,10 @@ development_status:
   # Epic 6: AI Strategy Optimization
   epic-6: in-progress
   6-1-ai-optimizer-pattern-analysis-suggestions: review
-  6-2-ai-optimizer-ab-testing-overfitting-detection: backlog
-  6-3-ai-assistant-performance-qa-decision-explanation: backlog
+  6-2-ai-optimizer-ab-testing-overfitting-detection: review
+  6-3-ai-assistant-performance-qa-decision-explanation: review
   6-4-ai-assistant-read-only-safety-risk-parameter-suggestions: review
-  epic-6-retrospective: optional
+  epic-6-retrospective: done
 
   # Epic 7: Scaling & Enterprise
   epic-7: backlog
