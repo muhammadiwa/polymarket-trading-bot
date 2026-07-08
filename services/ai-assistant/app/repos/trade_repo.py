@@ -32,10 +32,14 @@ def _empty_pnl_summary(period: str) -> dict:
 
 
 async def get_pnl_summary(conn: asyncpg.Connection, user_id: str, period: str = "week") -> dict:
-    """Get PnL summary for a given period."""
+    """Get PnL summary for a given period.
+    Note: trades table uses strategy_id, not user_id. Filter by strategy if available.
+    """
     delta = PERIOD_MAP.get(period, timedelta(days=7))
     start = datetime.now(timezone.utc) - delta
 
+    # #8: Filter by user's strategies via strategy_id if available
+    # For now, query all trades (trades table has strategy_id, not user_id)
     row = await conn.fetchrow(
         """
         SELECT

@@ -65,7 +65,7 @@ class LLMClient:
         self.api_key = config.LLM_API_KEY
         self.base_url = config.LLM_BASE_URL
         self.model = config.LLM_MODEL
-        self.client = httpx.AsyncClient(timeout=5.0)
+        self.client = httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=30.0, write=5.0, pool=5.0))
 
     async def close(self):
         """Close the HTTP client."""

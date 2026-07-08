@@ -14,7 +14,7 @@ ZERO = Decimal("0")
 SCORE_SPLIT_THRESHOLD = Decimal("0.02")
 SIZE_SPLIT_THRESHOLD = Decimal("50")
 MIN_SAMPLES_PER_BUCKET = 5
-MIN_TOTAL_TRADES = 10
+MIN_TOTAL_TRADES = 100  # Minimum trades required per acceptance criteria
 MIN_RATE_DELTA = 0.10  # #7: Minimum win rate delta to avoid spurious patterns
 
 
