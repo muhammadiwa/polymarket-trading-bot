@@ -24,23 +24,27 @@ So that I get helpful suggestions without any risk of the assistant modifying my
 ## Tasks / Subtasks
 
 - [ ] Task 1: Risk Parameter Suggestion Engine (AC: #1)
-  - [ ] Analyze current risk state from risk-manager API
+  - [ ] Fetch current risk state from risk-manager Redis (Pit Boss state)
+  - [ ] Fetch recent trade performance from analytics service
+  - [ ] Compare current parameters against performance metrics
   - [ ] Generate conservative suggestions (only reduce risk, never increase)
-  - [ ] Include rationale with data points
+  - [ ] Include rationale with specific data points
 - [ ] Task 2: Read-only Safety Enforcement (AC: #2)
-  - [ ] Verify all API endpoints are read-only (no write operations)
-  - [ ] Ensure no trade execution or config modification capability
-  - [ ] Document read-only constraint
-- [ ] Task 3: API Endpoint
+  - [ ] Verify all existing endpoints are read-only (already true)
+  - [ ] Add documentation comment to each endpoint confirming read-only
+  - [ ] No write endpoints to trades, strategies, or risk tables
+- [ ] Task 3: API Endpoint (AC: #1)
   - [ ] POST /api/assistant/suggest-risk-parameters
-  - [ ] Returns suggestions with rationale (no auto-apply)
+  - [ ] Request: optional strategy_id filter
+  - [ ] Response: list of suggestions with parameter, current, suggested, rationale
+  - [ ] Suggestions are NOT auto-applied — user must manually update
 
 ## Dev Notes
 
 ### Architecture Context
 
 - **Service:** `ai-assistant` (Python/FastAPI) — extends Story 6.3
-- **Data source:** risk-manager API (read-only), analytics service
+- **Data source:** risk-manager Redis (Pit Boss state), analytics service API
 - **Pattern:** Read-only analysis, suggestions only, no execution
 
 ### Key Architecture Rules
@@ -61,15 +65,71 @@ So that I get helpful suggestions without any risk of the assistant modifying my
 - Change: Add suggest_risk_parameters() for risk analysis
 - Preserve: Existing Q&A functionality
 
+### Files to CREATE
+
+**`services/ai-assistant/app/engine/risk_advisor.py`**
+- Risk parameter suggestion logic
+- Conservative rule engine
+- Rationale generator
+
+### Risk State Data Source
+
+```python
+# Fetch current risk state from risk-manager API
+async def get_risk_state() -> dict:
+    """Read Pit Boss state from risk-manager Redis via API."""
+    # GET /api/risk/state returns:
+    # - daily_budget_remaining
+    # - current_drawdown
+    # - win_streak_current
+    # - circuit_breaker_status
+    # - market_limits
+    # - strategy_limits
+```
+
 ### Conservative Suggestion Rules
 
-| Parameter | Suggestion Direction | Constraint |
-|-----------|---------------------|------------|
-| Daily loss limit | Only decrease | Never suggest > current |
-| Max position per market | Only decrease | Never suggest > current |
-| Max position per strategy | Only decrease | Never suggest > current |
-| Score threshold | Only increase | Never suggest < current |
-| Slippage tolerance | Only decrease | Never suggest > current |
+| Parameter | Direction | Trigger Condition | Rationale Format |
+|-----------|-----------|-------------------|-----------------|
+| Daily loss limit | Decrease only | Current drawdown > 5% | "Drawdown at X%, reducing limit to Y% limits daily exposure" |
+| Max position per market | Decrease only | Any market > 80% utilization | "Market X at Y% utilization, reducing limit to Z%" |
+| Max position per strategy | Decrease only | Any strategy > 80% utilization | "Strategy X at Y% utilization, reducing limit to Z%" |
+| Score threshold | Increase only | Win rate < 60% | "Win rate at X%, raising threshold filters low-quality trades" |
+| Slippage tolerance | Decrease only | Avg slippage > 0.5% | "Avg slippage at X%, tighter tolerance reduces execution cost" |
+
+### Request/Response Format
+
+**POST /api/assistant/suggest-risk-parameters:**
+```json
+Request: { "strategy_id": "optional-filter" }
+
+Response: {
+  "suggestions": [
+    {
+      "parameter": "daily_loss_limit",
+      "current_value": "2.0",
+      "suggested_value": "1.5",
+      "direction": "decrease",
+      "rationale": "Current drawdown is 7.2%, approaching the 10% circuit breaker. Reducing daily loss limit to 1.5% limits exposure during volatile periods.",
+      "confidence": "high",
+      "data_points": ["current_drawdown: 7.2%", "7_day_avg_drawdown: 4.1%"]
+    }
+  ],
+  "analysis_timestamp": "2025-01-15T10:30:00Z",
+  "read_only": true,
+  "requires_approval": true
+}
+```
+
+### Read-only Verification
+
+All existing ai-assistant endpoints are read-only:
+- POST /ask — queries data, no writes
+- POST /explain-trade — reads trade data, no writes
+- GET /history — reads conversation history, no writes
+- POST /suggest-risk-parameters — generates suggestions, no writes (NEW)
+
+No endpoints write to: trades, strategies, risk_events, positions tables.
 
 ### References
 
