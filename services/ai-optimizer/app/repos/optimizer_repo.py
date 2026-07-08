@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 async def get_trades(conn: asyncpg.Connection, strategy_id: str, limit: int = 10000) -> list[dict]:
     rows = await conn.fetch(
         """
-        SELECT pnl, score, quantity, side, fill_status, fill_timestamp, market_id, strategy_id
+        SELECT pnl, score, quantity, side, fill_status, fill_timestamp, market_id, strategy_id,
+               entry_price, exit_price
         FROM trades
         WHERE strategy_id = $1 AND fill_status IN ('FILLED', 'PARTIAL_FILL')
         ORDER BY fill_timestamp DESC
@@ -36,8 +37,9 @@ async def save_suggestion(conn: asyncpg.Connection, suggestion: dict) -> str:
         """
         INSERT INTO optimizer_suggestions
             (strategy_id, pattern_type, parameter_name, current_value, suggested_value,
-             expected_impact, methodology, confidence, p_value)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             expected_impact, methodology, confidence, p_value,
+             overfitting_score, out_of_sample_win_rate, in_sample_win_rate, degradation_pct)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING id
         """,
         suggestion["strategy_id"],
@@ -49,8 +51,22 @@ async def save_suggestion(conn: asyncpg.Connection, suggestion: dict) -> str:
         suggestion["methodology"],
         suggestion["confidence"],
         suggestion.get("p_value"),
+        suggestion.get("overfitting_score"),
+        suggestion.get("out_of_sample_win_rate"),
+        suggestion.get("in_sample_win_rate"),
+        suggestion.get("degradation_pct"),
     )
     return str(row["id"])
+
+
+async def get_suggestion_by_id(conn: asyncpg.Connection, suggestion_id: str) -> Optional[dict]:
+    row = await conn.fetchrow(
+        "SELECT * FROM optimizer_suggestions WHERE id = $1::uuid",
+        suggestion_id,
+    )
+    if row is None:
+        return None
+    return _row_to_suggestion(row)
 
 
 async def get_suggestions(
@@ -116,9 +132,13 @@ def _row_to_suggestion(row: asyncpg.Record) -> dict:
         "expected_impact": row["expected_impact"],
         "methodology": row["methodology"],
         "confidence": float(row["confidence"]),
-        "p_value": float(row["p_value"]) if row["p_value"] else None,
+        "p_value": float(row["p_value"]) if row["p_value"] is not None else None,
         "status": row["status"],
         "reviewed_by": str(row["reviewed_by"]) if row.get("reviewed_by") else None,
         "reviewed_at": row.get("reviewed_at"),
         "created_at": row["created_at"],
+        "overfitting_score": row.get("overfitting_score"),
+        "out_of_sample_win_rate": row.get("out_of_sample_win_rate"),
+        "in_sample_win_rate": row.get("in_sample_win_rate"),
+        "degradation_pct": row.get("degradation_pct"),
     }

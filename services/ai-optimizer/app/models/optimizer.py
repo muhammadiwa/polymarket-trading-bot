@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -24,6 +25,10 @@ class SuggestionResponse(BaseModel):
     reviewed_by: Optional[str]
     reviewed_at: Optional[datetime]
     created_at: datetime
+    overfitting_score: Optional[Decimal] = None
+    out_of_sample_win_rate: Optional[Decimal] = None
+    in_sample_win_rate: Optional[Decimal] = None
+    degradation_pct: Optional[Decimal] = None
 
 
 class SuggestionListResponse(BaseModel):
