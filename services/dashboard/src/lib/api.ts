@@ -5,6 +5,17 @@ import type {
   RiskParameterUpdate,
   RiskStatus,
   SystemHealth,
+  SystemConfig,
+  SystemConfigListResponse,
+  SystemConfigUpdate,
+  ConfigAuditLogListResponse,
+  AdminHealthStatus,
+  LogQueryParams,
+  LogQueryResponse,
+  BackupInfo,
+  BackupListResponse,
+  CleanupResponse,
+  DatabaseStats,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -238,4 +249,78 @@ export async function fetchOrderbook(marketId: string): Promise<import("@/types"
 
 export async function fetchRecentTrades(marketId: string, limit = 100): Promise<{ trades: import("@/types").RecentTrade[]; count: number }> {
   return request<{ trades: import("@/types").RecentTrade[]; count: number }>(`/api/orderbook/${marketId}/trades?limit=${limit}`);
+}
+
+// Admin Config API
+export async function fetchAdminConfigs(category?: string): Promise<SystemConfigListResponse> {
+  const params = category ? `?category=${category}` : "";
+  return request<SystemConfigListResponse>(`/api/admin/config${params}`);
+}
+
+export async function fetchAdminConfig(key: string, unmask = false): Promise<SystemConfig> {
+  const params = unmask ? "?unmask=true" : "";
+  return request<SystemConfig>(`/api/admin/config/${key}${params}`);
+}
+
+export async function updateAdminConfig(key: string, update: SystemConfigUpdate): Promise<SystemConfig> {
+  return putRequest<SystemConfig>(`/api/admin/config/${key}`, update);
+}
+
+export async function fetchConfigAuditLogs(key?: string, limit = 50, offset = 0): Promise<ConfigAuditLogListResponse> {
+  const params = new URLSearchParams();
+  if (key) params.set("key", key);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  return request<ConfigAuditLogListResponse>(`/api/admin/config/audit/logs?${params.toString()}`);
+}
+
+// Admin Health API
+export async function fetchAdminHealth(): Promise<AdminHealthStatus> {
+  return request<AdminHealthStatus>("/api/admin/health");
+}
+
+export async function fetchAdminHealthAlerts(): Promise<{ alerts: import("@/types").HealthAlert[]; total: number }> {
+  return request<{ alerts: import("@/types").HealthAlert[]; total: number }>("/api/admin/health/alerts");
+}
+
+// Admin Log Viewer API
+export async function fetchAdminLogs(params: LogQueryParams): Promise<LogQueryResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.level) searchParams.set("level", params.level);
+  if (params.service) searchParams.set("service", params.service);
+  if (params.startDate) searchParams.set("start_date", params.startDate);
+  if (params.endDate) searchParams.set("end_date", params.endDate);
+  if (params.search) searchParams.set("search", params.search);
+  searchParams.set("limit", String(params.limit || 100));
+  searchParams.set("offset", String(params.offset || 0));
+  return request<LogQueryResponse>(`/api/admin/logs?${searchParams.toString()}`);
+}
+
+export async function fetchLogServices(): Promise<string[]> {
+  return request<string[]>("/api/admin/logs/services");
+}
+
+// Admin Database Management API
+export async function createBackup(): Promise<BackupInfo> {
+  return postRequest<BackupInfo>("/api/admin/database/backup");
+}
+
+export async function fetchBackups(): Promise<BackupListResponse> {
+  return request<BackupListResponse>("/api/admin/database/backups");
+}
+
+export async function getRestoreConfirmToken(backupId: string): Promise<{ confirmationToken: string }> {
+  return postRequest<{ confirmationToken: string }>(`/api/admin/database/restore/${backupId}/confirm-token`);
+}
+
+export async function restoreBackup(backupId: string, confirmationToken: string): Promise<{ status: string }> {
+  return postRequest<{ status: string }>(`/api/admin/database/restore/${backupId}`, { confirmationToken });
+}
+
+export async function cleanupDatabase(retentionDays: number, tables?: string[]): Promise<CleanupResponse> {
+  return postRequest<CleanupResponse>("/api/admin/database/cleanup", { retentionDays, tables });
+}
+
+export async function fetchDatabaseStats(): Promise<DatabaseStats> {
+  return request<DatabaseStats>("/api/admin/database/stats");
 }
