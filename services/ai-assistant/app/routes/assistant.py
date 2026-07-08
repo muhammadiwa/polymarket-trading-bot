@@ -1,14 +1,18 @@
 import asyncio
 import logging
 import time
+from datetime import datetime, timezone
+from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Response
 
+from app.config import config
 from app.db import get_pool
 from app.engine.decision_explainer import explain_trade
 from app.engine.llm_client import LLMClient
 from app.engine.performance_qa import answer_question
+from app.engine.risk_advisor import suggest_risk_parameters
 from app.middleware.auth import verify_jwt
 from app.models.assistant import AskRequest, AskResponse, ConversationHistory, TradeExplanation
 from app.repos import conversation_repo
@@ -187,3 +191,47 @@ async def get_history(
         messages = await conversation_repo.get_history(conn, user_id, limit)
 
     return ConversationHistory(messages=messages, total=len(messages))
+
+
+@router.post("/suggest-risk-parameters")
+async def suggest_risk_params(
+    strategy_id: Optional[str] = None,
+    user: dict = Depends(verify_jwt),
+):
+    """Generate conservative risk parameter suggestions based on current state.
+    Read-only — suggestions are NOT auto-applied. User must manually update.
+    """
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Missing user_id in token")
+    if not await _check_rate_limit(user_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
+
+    # Fetch current risk state from risk-manager API
+    risk_state = await _get_risk_state()
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        suggestions = await suggest_risk_parameters(conn, risk_state, strategy_id)
+
+    logger.info("risk parameter suggestions generated",
+        extra={"user": user.get("username"), "count": len(suggestions)})
+
+    return {
+        "suggestions": suggestions,
+        "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
+        "read_only": True,
+        "requires_approval": True,
+    }
+
+
+async def _get_risk_state() -> dict:
+    """Fetch current risk state from risk-manager API."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{config.RISK_MANAGER_URL}/api/v1/risk/state")
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception as e:
+        logger.warning("failed to fetch risk state", exc_info=e)
+    return {}

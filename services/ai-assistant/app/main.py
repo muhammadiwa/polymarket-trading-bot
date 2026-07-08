@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -27,13 +28,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AI Assistant", version="1.0.0", lifespan=lifespan)
 
-# CORS configuration
+# CORS configuration — restrict origins in production
+_allowed_origins = ["http://localhost:3000", "http://localhost:8080"]
+if os.getenv("CORS_ORIGINS"):
+    _allowed_origins = os.getenv("CORS_ORIGINS").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 metrics_app = make_asgi_app()

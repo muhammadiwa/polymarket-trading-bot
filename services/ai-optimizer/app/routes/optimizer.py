@@ -1,10 +1,11 @@
+import asyncio
 import logging
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db import get_pool
-from app.engine.overfitting_detector import detect_overfitting
 from app.engine.pattern_analyzer import analyze_trades
 from app.middleware.auth import verify_jwt
 from app.models.optimizer import AnalysisResult, SuggestionListResponse, SuggestionResponse
@@ -14,9 +15,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/optimizer", tags=["optimizer"])
 
-# #3: Simple in-memory rate limiter per strategy
+# #3, #4: Async-safe rate limiter with TTL eviction
 _analysis_cooldown: dict[str, float] = {}
-COOLDOWN_SECONDS = 60  # Minimum 60 seconds between analyses per strategy
+_cooldown_lock = asyncio.Lock()
+COOLDOWN_SECONDS = 60
+MAX_COOLDOWN_ENTRIES = 10000
 
 
 @router.post("/analyze", response_model=AnalysisResult)
@@ -26,17 +29,22 @@ async def run_analysis(
     _user: dict = Depends(verify_jwt),
 ):
     """Run pattern analysis on trade history for a strategy."""
-    # #3: Rate limit per strategy
-    import time
+    # #3, #4: Rate limit per strategy with async lock
     now = time.time()
-    last_run = _analysis_cooldown.get(strategy_id, 0)
-    if now - last_run < COOLDOWN_SECONDS:
-        remaining = int(COOLDOWN_SECONDS - (now - last_run))
-        raise HTTPException(
-            status_code=429,
-            detail=f"Analysis for this strategy was run recently. Try again in {remaining} seconds.",
-        )
-    _analysis_cooldown[strategy_id] = now
+    async with _cooldown_lock:
+        last_run = _analysis_cooldown.get(strategy_id, 0)
+        if now - last_run < COOLDOWN_SECONDS:
+            remaining = int(COOLDOWN_SECONDS - (now - last_run))
+            raise HTTPException(
+                status_code=429,
+                detail=f"Analysis for this strategy was run recently. Try again in {remaining} seconds.",
+            )
+        _analysis_cooldown[strategy_id] = now
+        # Evict stale entries if cache is too large
+        if len(_analysis_cooldown) > MAX_COOLDOWN_ENTRIES:
+            stale = [k for k, v in _analysis_cooldown.items() if now - v > COOLDOWN_SECONDS]
+            for k in stale:
+                del _analysis_cooldown[k]
 
     pool = await get_pool()
     async with pool.acquire() as conn:
