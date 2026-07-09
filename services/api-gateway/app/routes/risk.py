@@ -512,3 +512,248 @@ async def update_parameters(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update risk parameters",
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-Account Risk Limits Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+from app.middleware.auth import require_admin
+from app.models.risk_limits import (
+    RiskLimitsResponse,
+    RiskLimitsUpdate,
+    AccountRiskSummary,
+    CrossAccountRiskResponse,
+)
+from app.metrics import (
+    RISK_LIMITS_UPDATES_TOTAL,
+    RISK_PER_ACCOUNT_LIMIT_CHECKS_TOTAL,
+    PORTFOLIO_CROSS_ACCOUNT_QUERIES_TOTAL,
+    PORTFOLIO_CROSS_ACCOUNT_LATENCY,
+)
+
+# Configurable thresholds
+RISK_WARNING_THRESHOLD = Decimal("0.8")  # 80% of limit
+
+
+def _validate_account_id(account_id: str) -> uuid.UUID:
+    """Validate and return UUID from string."""
+    try:
+        return uuid.UUID(account_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid account ID format")
+
+
+@router.get("/limits/{account_id}", response_model=RiskLimitsResponse)
+async def get_risk_limits(
+    account_id: str,
+    _user: dict = Depends(verify_jwt),
+):
+    """Get per-account risk limits."""
+    _validate_account_id(account_id)
+
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM account_risk_limits WHERE account_id = $1::uuid",
+            account_id,
+        )
+
+    if not row:
+        # Return defaults if no limits set
+        return RiskLimitsResponse(
+            account_id=account_id,
+            daily_loss_limit=config.DEFAULT_DAILY_LOSS_LIMIT_PCT,
+            max_position_per_market=config.DEFAULT_MAX_POSITION_PER_MARKET_PCT,
+            max_position_per_strategy=config.DEFAULT_MAX_POSITION_PER_STRATEGY_PCT,
+            drawdown_threshold=config.DEFAULT_DRAWDOWN_THRESHOLD_PCT,
+        )
+
+    return RiskLimitsResponse(
+        account_id=row["account_id"],
+        daily_loss_limit=str(row["daily_loss_limit"]),
+        max_position_per_market=str(row["max_position_per_market"]),
+        max_position_per_strategy=str(row["max_position_per_strategy"]),
+        drawdown_threshold=str(row["drawdown_threshold"]),
+    )
+
+
+@router.put("/limits/{account_id}", response_model=RiskLimitsResponse)
+async def update_risk_limits(
+    account_id: str,
+    body: RiskLimitsUpdate,
+    user: dict = Depends(verify_jwt),
+):
+    """Update per-account risk limits. Requires admin role."""
+    require_admin(user)
+    RISK_LIMITS_UPDATES_TOTAL.inc()
+    _validate_account_id(account_id)
+
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    async with pool.acquire() as conn:
+        # Check if account exists
+        account = await conn.fetchrow(
+            "SELECT id FROM accounts WHERE id = $1::uuid",
+            account_id,
+        )
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+
+        # Build update query
+        updates = []
+        params = []
+        idx = 1
+
+        if body.daily_loss_limit is not None:
+            updates.append(f"daily_loss_limit = ${idx}")
+            params.append(body.daily_loss_limit)
+            idx += 1
+
+        if body.max_position_per_market is not None:
+            updates.append(f"max_position_per_market = ${idx}")
+            params.append(body.max_position_per_market)
+            idx += 1
+
+        if body.max_position_per_strategy is not None:
+            updates.append(f"max_position_per_strategy = ${idx}")
+            params.append(body.max_position_per_strategy)
+            idx += 1
+
+        if body.drawdown_threshold is not None:
+            updates.append(f"drawdown_threshold = ${idx}")
+            params.append(body.drawdown_threshold)
+            idx += 1
+
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        updates.append("updated_at = NOW()")
+
+        # Build parameterized upert query
+        # $1 = account_id, $2-$5 = default values, $6+ = update params
+        default_params = [
+            config.DEFAULT_DAILY_LOSS_LIMIT_PCT,
+            config.DEFAULT_MAX_POSITION_PER_MARKET_PCT,
+            config.DEFAULT_MAX_POSITION_PER_STRATEGY_PCT,
+            config.DEFAULT_DRAWDOWN_THRESHOLD_PCT,
+        ]
+
+        # Adjust parameter indices for updates (start from $6)
+        adjusted_updates = []
+        for i, update in enumerate(updates):
+            # Replace $N with $(N+5) to account for the 5 fixed params
+            adjusted = update
+            for j in range(1, idx):
+                adjusted = adjusted.replace(f"${j}", f"${j + 5}")
+            adjusted_updates.append(adjusted)
+
+        query = f"""
+            INSERT INTO account_risk_limits (account_id, daily_loss_limit, max_position_per_market, max_position_per_strategy, drawdown_threshold)
+            VALUES ($1::uuid, $2, $3, $4, $5)
+            ON CONFLICT (account_id) DO UPDATE SET {', '.join(adjusted_updates)}
+            RETURNING *
+        """
+        all_params = [account_id] + default_params + params
+        row = await conn.fetchrow(query, *all_params)
+
+    return RiskLimitsResponse(
+        account_id=row["account_id"],
+        daily_loss_limit=str(row["daily_loss_limit"]),
+        max_position_per_market=str(row["max_position_per_market"]),
+        max_position_per_strategy=str(row["max_position_per_strategy"]),
+        drawdown_threshold=str(row["drawdown_threshold"]),
+    )
+
+
+@router.get("/cross-account", response_model=CrossAccountRiskResponse)
+async def get_cross_account_risk(
+    _user: dict = Depends(verify_jwt),
+):
+    """Get cross-account risk exposure."""
+    start = time.monotonic()
+    RISK_PER_ACCOUNT_LIMIT_CHECKS_TOTAL.inc()
+
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT
+                a.id as account_id,
+                a.name as account_name,
+                COALESCE(arl.daily_loss_limit, %s) as daily_loss_limit,
+                COALESCE(SUM(p.unrealized_pnl), 0) as daily_loss_used,
+                COALESCE(arl.max_position_per_market, %s) as max_position_per_market,
+                COALESCE(SUM(p.quantity * p.current_price), 0) as current_exposure
+            FROM accounts a
+            LEFT JOIN account_risk_limits arl ON arl.account_id = a.id
+            LEFT JOIN positions p ON p.account_id = a.id AND p.status = 'open'
+            WHERE a.is_active = true
+            GROUP BY a.id, a.name, arl.daily_loss_limit, arl.max_position_per_market
+            """,
+            config.DEFAULT_DAILY_LOSS_LIMIT_PCT,
+            config.DEFAULT_MAX_POSITION_PER_MARKET_PCT,
+        )
+
+    accounts = []
+    total_exposure = Decimal("0")
+    total_daily_loss = Decimal("0")
+
+    for row in rows:
+        exposure = Decimal(str(row["current_exposure"]))
+        loss = Decimal(str(row["daily_loss_used"]))
+        limit = Decimal(str(row["daily_loss_limit"]))
+
+        total_exposure += exposure
+        total_daily_loss += loss
+
+        # Determine status
+        if loss >= limit:
+            status_val = "critical"
+        elif loss >= limit * RISK_WARNING_THRESHOLD:
+            status_val = "warning"
+        else:
+            status_val = "healthy"
+
+        accounts.append(AccountRiskSummary(
+            account_id=row["account_id"],
+            account_name=row["account_name"],
+            daily_loss_limit=str(row["daily_loss_limit"]),
+            daily_loss_used=str(row["daily_loss_used"]),
+            max_position_per_market=str(row["max_position_per_market"]),
+            current_exposure=str(row["current_exposure"]),
+            status=status_val,
+        ))
+
+    # Determine overall status
+    overall_status = "healthy"
+    if any(a.status == "critical" for a in accounts):
+        overall_status = "critical"
+    elif any(a.status == "warning" for a in accounts):
+        overall_status = "warning"
+
+    elapsed = (time.monotonic() - start) * 1000
+    PORTFOLIO_CROSS_ACCOUNT_LATENCY.observe(elapsed)
+    PORTFOLIO_CROSS_ACCOUNT_QUERIES_TOTAL.inc()
+
+    return CrossAccountRiskResponse(
+        total_exposure=str(total_exposure),
+        total_daily_loss=str(total_daily_loss),
+        accounts=accounts,
+        overall_status=overall_status,
+        last_updated=datetime.now(timezone.utc),
+    )

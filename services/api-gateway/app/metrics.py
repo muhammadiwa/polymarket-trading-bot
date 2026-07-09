@@ -180,3 +180,30 @@ ADMIN_CLEANUP_ROWS_DELETED = Counter(
     "Total rows deleted by cleanup",
     ["table"],
 )
+
+# Cross-account metrics
+PORTFOLIO_CROSS_ACCOUNT_QUERIES_TOTAL = Counter(
+    "pqap_portfolio_cross_account_queries_total",
+    "Total cross-account portfolio queries",
+)
+
+PORTFOLIO_CROSS_ACCOUNT_LATENCY = Histogram(
+    "pqap_portfolio_cross_account_latency_ms",
+    "Cross-account portfolio query latency in milliseconds",
+    buckets=[5, 10, 25, 50, 100, 250, 500, 1000],
+)
+
+RISK_CROSS_ACCOUNT_EXPOSURE = Gauge(
+    "pqap_risk_cross_account_exposure_total",
+    "Total cross-account risk exposure",
+)
+
+RISK_PER_ACCOUNT_LIMIT_CHECKS_TOTAL = Counter(
+    "pqap_risk_per_account_limit_checks_total",
+    "Total per-account risk limit checks",
+)
+
+RISK_LIMITS_UPDATES_TOTAL = Counter(
+    "pqap_risk_limits_updates_total",
+    "Total risk limits updates",
+)

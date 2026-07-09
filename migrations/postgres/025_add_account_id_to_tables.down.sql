@@ -1,0 +1,3 @@
+ALTER TABLE trades DROP COLUMN IF EXISTS account_id;
+ALTER TABLE positions DROP COLUMN IF EXISTS account_id;
+ALTER TABLE risk_events DROP COLUMN IF EXISTS account_id;

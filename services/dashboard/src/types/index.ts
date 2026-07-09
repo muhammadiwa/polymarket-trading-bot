@@ -256,3 +256,69 @@ export interface DatabaseStats {
   totalTrades: number;
   totalPositions: number;
 }
+
+// Cross-Account Portfolio Types
+export interface AccountPortfolioSummary {
+  accountId: string;
+  accountName: string;
+  capital: string;
+  dailyPnL: string;
+  totalPnL: string;
+  positionCount: number;
+  utilizationRate: string;
+  isActive: boolean;
+}
+
+export interface CrossAccountPortfolio {
+  totalCapital: string;
+  totalDailyPnL: string;
+  totalPnL: string;
+  totalPositions: number;
+  accounts: AccountPortfolioSummary[];
+  lastUpdated: string;
+}
+
+export interface PerAccountPortfolio {
+  accountId: string;
+  accountName: string;
+  capital: string;
+  dailyPnL: string;
+  totalPnL: string;
+  positions: Position[];
+  utilizationRate: string;
+  lastUpdated: string;
+}
+
+// Cross-Account Risk Types
+export interface AccountRiskSummary {
+  accountId: string;
+  accountName: string;
+  dailyLossLimit: string;
+  dailyLossUsed: string;
+  maxPositionPerMarket: string;
+  currentExposure: string;
+  status: 'healthy' | 'warning' | 'critical';
+}
+
+export interface CrossAccountRisk {
+  totalExposure: string;
+  totalDailyLoss: string;
+  accounts: AccountRiskSummary[];
+  overallStatus: 'healthy' | 'warning' | 'critical';
+  lastUpdated: string;
+}
+
+export interface PerAccountRiskLimits {
+  accountId: string;
+  dailyLossLimit: string;
+  maxPositionPerMarket: string;
+  maxPositionPerStrategy: string;
+  drawdownThreshold: string;
+}
+
+export interface RiskLimitsUpdate {
+  dailyLossLimit?: string;
+  maxPositionPerMarket?: string;
+  maxPositionPerStrategy?: string;
+  drawdownThreshold?: string;
+}
