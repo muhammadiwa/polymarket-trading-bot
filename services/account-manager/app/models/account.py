@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field
 
 class AccountCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    wallet_address: str = Field(min_length=1, max_length=100)
-    private_key: str = Field(min_length=1)
+    wallet_address: str = Field(min_length=42, max_length=42, pattern=r"^0x[0-9a-fA-F]{40}$")
+    private_key: str = Field(min_length=1, max_length=256)
 
 
 class AccountUpdate(BaseModel):

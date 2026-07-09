@@ -1,9 +1,10 @@
-import hashlib
 import logging
 import os
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
 
 logger = logging.getLogger(__name__)
 
@@ -56,5 +57,11 @@ class WalletEncryption:
             raise ValueError("Decryption failed: invalid key or corrupted data")
 
     def _derive_key(self, account_id: str) -> bytes:
-        """Derive encryption key from master key + account ID."""
-        return hashlib.sha256(self.master_key + account_id.encode()).digest()
+        """Derive encryption key from master key + account ID using HKDF."""
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=f"pqap-account-{account_id}".encode(),
+        )
+        return hkdf.derive(self.master_key)

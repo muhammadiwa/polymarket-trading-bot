@@ -6,6 +6,7 @@ class Config:
     JWT_SECRET: str = os.getenv("RISK_JWT_SECRET", "")
     JWT_ALGORITHM: str = "HS256"
     LOG_LEVEL: str = os.getenv("ACCOUNT_MANAGER_LOG_LEVEL", "info")
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
 
     # Encryption
     ENCRYPTION_MASTER_KEY: str = os.getenv("ENCRYPTION_MASTER_KEY", "")
