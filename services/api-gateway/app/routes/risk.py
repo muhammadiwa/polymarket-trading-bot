@@ -524,8 +524,6 @@ from app.models.risk_limits import (
     RiskLimitsUpdate,
     AccountRiskSummary,
     CrossAccountRiskResponse,
-    AccountPortfolioSummary,
-    CrossAccountPortfolioResponse,
 )
 from app.metrics import (
     RISK_LIMITS_UPDATES_TOTAL,
@@ -534,6 +532,17 @@ from app.metrics import (
     PORTFOLIO_CROSS_ACCOUNT_LATENCY,
 )
 
+# Configurable thresholds
+RISK_WARNING_THRESHOLD = Decimal("0.8")  # 80% of limit
+
+
+def _validate_account_id(account_id: str) -> uuid.UUID:
+    """Validate and return UUID from string."""
+    try:
+        return uuid.UUID(account_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid account ID format")
+
 
 @router.get("/limits/{account_id}", response_model=RiskLimitsResponse)
 async def get_risk_limits(
@@ -541,12 +550,14 @@ async def get_risk_limits(
     _user: dict = Depends(verify_jwt),
 ):
     """Get per-account risk limits."""
-    try:
-        uuid.UUID(account_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid account ID format")
+    _validate_account_id(account_id)
 
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM account_risk_limits WHERE account_id = $1::uuid",
@@ -581,13 +592,14 @@ async def update_risk_limits(
     """Update per-account risk limits. Requires admin role."""
     require_admin(user)
     RISK_LIMITS_UPDATES_TOTAL.inc()
+    _validate_account_id(account_id)
 
     try:
-        uuid.UUID(account_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid account ID format")
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
 
-    pool = await get_pool()
     async with pool.acquire() as conn:
         # Check if account exists
         account = await conn.fetchrow(
@@ -626,16 +638,33 @@ async def update_risk_limits(
             raise HTTPException(status_code=400, detail="No fields to update")
 
         updates.append("updated_at = NOW()")
-        params.append(account_id)
 
-        # Upsert risk limits
+        # Build parameterized upert query
+        # $1 = account_id, $2-$5 = default values, $6+ = update params
+        default_params = [
+            config.DEFAULT_DAILY_LOSS_LIMIT_PCT,
+            config.DEFAULT_MAX_POSITION_PER_MARKET_PCT,
+            config.DEFAULT_MAX_POSITION_PER_STRATEGY_PCT,
+            config.DEFAULT_DRAWDOWN_THRESHOLD_PCT,
+        ]
+
+        # Adjust parameter indices for updates (start from $6)
+        adjusted_updates = []
+        for i, update in enumerate(updates):
+            # Replace $N with $(N+5) to account for the 5 fixed params
+            adjusted = update
+            for j in range(1, idx):
+                adjusted = adjusted.replace(f"${j}", f"${j + 5}")
+            adjusted_updates.append(adjusted)
+
         query = f"""
             INSERT INTO account_risk_limits (account_id, daily_loss_limit, max_position_per_market, max_position_per_strategy, drawdown_threshold)
-            VALUES ($1::uuid, {config.DEFAULT_DAILY_LOSS_LIMIT_PCT}, {config.DEFAULT_MAX_POSITION_PER_MARKET_PCT}, {config.DEFAULT_MAX_POSITION_PER_STRATEGY_PCT}, {config.DEFAULT_DRAWDOWN_THRESHOLD_PCT})
-            ON CONFLICT (account_id) DO UPDATE SET {', '.join(updates)}
+            VALUES ($1::uuid, $2, $3, $4, $5)
+            ON CONFLICT (account_id) DO UPDATE SET {', '.join(adjusted_updates)}
             RETURNING *
         """
-        row = await conn.fetchrow(query, account_id, *params)
+        all_params = [account_id] + default_params + params
+        row = await conn.fetchrow(query, *all_params)
 
     return RiskLimitsResponse(
         account_id=row["account_id"],
@@ -654,7 +683,12 @@ async def get_cross_account_risk(
     start = time.monotonic()
     RISK_PER_ACCOUNT_LIMIT_CHECKS_TOTAL.inc()
 
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
@@ -690,7 +724,7 @@ async def get_cross_account_risk(
         # Determine status
         if loss >= limit:
             status_val = "critical"
-        elif loss >= limit * Decimal("0.8"):
+        elif loss >= limit * RISK_WARNING_THRESHOLD:
             status_val = "warning"
         else:
             status_val = "healthy"

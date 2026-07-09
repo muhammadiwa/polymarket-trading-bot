@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -10,10 +10,10 @@ class RiskLimitsResponse(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     account_id: UUID
-    daily_loss_limit: str
-    max_position_per_market: str
-    max_position_per_strategy: str
-    drawdown_threshold: str
+    daily_loss_limit: str = Field(..., max_length=20)
+    max_position_per_market: str = Field(..., max_length=20)
+    max_position_per_strategy: str = Field(..., max_length=20)
+    drawdown_threshold: str = Field(..., max_length=20)
 
 
 class RiskLimitsUpdate(BaseModel):
@@ -51,19 +51,19 @@ class AccountRiskSummary(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     account_id: UUID
-    account_name: str
-    daily_loss_limit: str
-    daily_loss_used: str
-    max_position_per_market: str
-    current_exposure: str
-    status: str
+    account_name: str = Field(..., max_length=100)
+    daily_loss_limit: str = Field(..., max_length=20)
+    daily_loss_used: str = Field(..., max_length=20)
+    max_position_per_market: str = Field(..., max_length=20)
+    current_exposure: str = Field(..., max_length=20)
+    status: Literal['healthy', 'warning', 'critical']
 
 
 class CrossAccountRiskResponse(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
-    total_exposure: str
-    total_daily_loss: str
+    total_exposure: str = Field(..., max_length=20)
+    total_daily_loss: str = Field(..., max_length=20)
     accounts: list[AccountRiskSummary]
-    overall_status: str
+    overall_status: Literal['healthy', 'warning', 'critical']
     last_updated: datetime
