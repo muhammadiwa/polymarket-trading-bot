@@ -35,6 +35,11 @@ class Config:
     INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "")
     # Backup storage directory
     BACKUP_DIR: str = os.getenv("BACKUP_DIR", "/var/backups/pqap")
+    # Default risk limits (used when no per-account limits set)
+    DEFAULT_DAILY_LOSS_LIMIT_PCT: str = os.getenv("DEFAULT_DAILY_LOSS_LIMIT_PCT", "2.0")
+    DEFAULT_MAX_POSITION_PER_MARKET_PCT: str = os.getenv("DEFAULT_MAX_POSITION_PER_MARKET_PCT", "10.0")
+    DEFAULT_MAX_POSITION_PER_STRATEGY_PCT: str = os.getenv("DEFAULT_MAX_POSITION_PER_STRATEGY_PCT", "20.0")
+    DEFAULT_DRAWDOWN_THRESHOLD_PCT: str = os.getenv("DEFAULT_DRAWDOWN_THRESHOLD_PCT", "10.0")
 
 
 config = Config()

@@ -16,6 +16,12 @@ import type {
   BackupListResponse,
   CleanupResponse,
   DatabaseStats,
+  CrossAccountPortfolio,
+  PerAccountPortfolio,
+  AccountPortfolioSummary,
+  CrossAccountRisk,
+  PerAccountRiskLimits,
+  RiskLimitsUpdate,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -323,4 +329,34 @@ export async function cleanupDatabase(retentionDays: number, tables?: string[]):
 
 export async function fetchDatabaseStats(): Promise<DatabaseStats> {
   return request<DatabaseStats>("/api/admin/database/stats");
+}
+
+// Cross-Account Portfolio API
+export async function fetchCrossAccountPortfolio(): Promise<CrossAccountPortfolio> {
+  return request<CrossAccountPortfolio>("/api/portfolio/cross-account");
+}
+
+export async function fetchPerAccountPortfolio(accountId: string): Promise<PerAccountPortfolio> {
+  return request<PerAccountPortfolio>(`/api/portfolio/overview?account_id=${accountId}`);
+}
+
+export async function fetchAccountPortfolioSummaries(): Promise<AccountPortfolioSummary[]> {
+  return request<AccountPortfolioSummary[]>("/api/portfolio/accounts");
+}
+
+// Cross-Account Risk API
+export async function fetchCrossAccountRisk(): Promise<CrossAccountRisk> {
+  return request<CrossAccountRisk>("/api/risk/cross-account");
+}
+
+export async function fetchPerAccountRisk(accountId: string): Promise<CrossAccountRisk> {
+  return request<CrossAccountRisk>(`/api/risk/status?account_id=${accountId}`);
+}
+
+export async function fetchRiskLimits(accountId: string): Promise<PerAccountRiskLimits> {
+  return request<PerAccountRiskLimits>(`/api/risk/limits/${accountId}`);
+}
+
+export async function updateRiskLimits(accountId: string, limits: RiskLimitsUpdate): Promise<PerAccountRiskLimits> {
+  return putRequest<PerAccountRiskLimits>(`/api/risk/limits/${accountId}`, limits);
 }
