@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Suggestion, OverfittingAnalysis } from "@/types";
 import {
   fetchSuggestions,
@@ -23,6 +23,23 @@ export default function SuggestionsPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null);
   const [overfitting, setOverfitting] = useState<OverfittingAnalysis | null>(null);
+  const [confirmReject, setConfirmReject] = useState<string | null>(null);
+  const successTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-dismiss success message after 5 seconds
+  useEffect(() => {
+    if (success) {
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current);
+      }
+      successTimerRef.current = setTimeout(() => setSuccess(null), 5000);
+    }
+    return () => {
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current);
+      }
+    };
+  }, [success]);
 
   const loadSuggestions = useCallback(async () => {
     try {
@@ -58,12 +75,19 @@ export default function SuggestionsPage() {
     }
   };
 
-  const handleReject = async (id: string) => {
+  const handleRejectClick = (id: string) => {
+    setConfirmReject(id);
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!confirmReject) return;
+
     try {
       setError(null);
       setSuccess(null);
-      await rejectSuggestion(id);
+      await rejectSuggestion(confirmReject);
       setSuccess("Suggestion rejected");
+      setConfirmReject(null);
       loadSuggestions();
     } catch (err: any) {
       setError(err.message || "Failed to reject suggestion");
@@ -242,7 +266,7 @@ export default function SuggestionsPage() {
                               Approve
                             </button>
                             <button
-                              onClick={() => handleReject(s.id)}
+                              onClick={() => handleRejectClick(s.id)}
                               className="rounded bg-red-800 px-2 py-1 text-xs text-red-300 hover:bg-red-700"
                             >
                               Reject
@@ -272,6 +296,32 @@ export default function SuggestionsPage() {
           </div>
         )}
       </div>
+
+      {/* Reject Confirmation Dialog */}
+      {confirmReject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-gray-900 p-6">
+            <h3 className="text-lg font-semibold text-white">Confirm Reject</h3>
+            <p className="mt-2 text-gray-400">
+              Are you sure you want to reject this suggestion? This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-4">
+              <button
+                onClick={() => setConfirmReject(null)}
+                className="rounded-md bg-gray-800 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectConfirm}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Overfitting Analysis Modal */}
       {overfitting && selectedSuggestion && (
