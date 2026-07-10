@@ -99,3 +99,14 @@ development_status:
   7-4-admin-panel-log-viewer-database-management: review
   epic-7-retrospective: optional
 
+  # Epic 8: Code Audit Remediation
+  epic-8: backlog
+  8-1-schema-unification-ensure-schema-to-migrations: backlog
+  8-2-event-contract-alignment-nats-subject-schema: backlog
+  8-3-frontend-backtesting-ui: backlog
+  8-4-frontend-ai-optimizer-ui: backlog
+  8-5-frontend-account-management-ui: backlog
+  8-6-integration-fixes-data-flow-error-handling: backlog
+  8-7-security-hardening: backlog
+  epic-8-retrospective: optional
+
