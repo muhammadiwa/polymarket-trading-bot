@@ -228,6 +228,36 @@ type TradeRecordedPayload struct {
 	LatencyMs      int             `json:"latency_ms"`
 }
 
+type ExitOrderRequest struct {
+	EventID   string                  `json:"event_id"`
+	EventType string                  `json:"event_type"`
+	Timestamp time.Time               `json:"timestamp"`
+	Source    string                  `json:"source"`
+	Payload   ExitOrderRequestPayload `json:"payload"`
+}
+
+type ExitOrderRequestPayload struct {
+	PositionID string          `json:"position_id"`
+	MarketID   string          `json:"market_id"`
+	Side       string          `json:"side"`
+	Quantity   decimal.Decimal `json:"quantity"`
+	OrderType  string          `json:"order_type"`
+	Reason     string          `json:"reason"`
+}
+
+type CancelAllOrders struct {
+	EventID   string                 `json:"event_id"`
+	EventType string                 `json:"event_type"`
+	Timestamp time.Time              `json:"timestamp"`
+	Source    string                 `json:"source"`
+	Payload   CancelAllOrdersPayload `json:"payload"`
+}
+
+type CancelAllOrdersPayload struct {
+	Reason string `json:"reason"`
+	UserID string `json:"user_id"`
+}
+
 type EventPublisher interface {
 	PublishOrderPlaced(ctx context.Context, event OrderPlaced) error
 	PublishOrderFilled(ctx context.Context, event OrderFilled) error
@@ -245,5 +275,7 @@ type EventPublisher interface {
 
 type EventSubscriber interface {
 	Subscribe(ctx context.Context, handler func(OpportunityDetected)) error
+	SubscribeExitOrderRequest(ctx context.Context, handler func(ExitOrderRequest)) error
+	SubscribeCancelAllOrders(ctx context.Context, handler func(CancelAllOrders)) error
 	Close() error
 }

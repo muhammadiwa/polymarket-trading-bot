@@ -20,6 +20,7 @@ type OrderFilledPayload struct {
 	ClientOrderID string          `json:"client_order_id"`
 	OpportunityID string          `json:"opportunity_id"`
 	MarketID      string          `json:"market_id"`
+	MarketSlug    string          `json:"market_slug"`
 	Side          string          `json:"side"`
 	Price         decimal.Decimal `json:"price"`
 	FilledQty     decimal.Decimal `json:"filled_qty"`
@@ -56,11 +57,11 @@ type PositionUpdated struct {
 }
 
 type PositionUpdatedPayload struct {
-	PositionID   string          `json:"position_id"`
-	MarketID     string          `json:"market_id"`
-	CurrentPrice decimal.Decimal `json:"current_price"`
-	Quantity     decimal.Decimal `json:"quantity"`
-	StrategyID   string          `json:"strategy_id"`
+	PositionID    string          `json:"position_id"`
+	MarketID      string          `json:"market_id"`
+	CurrentPrice  decimal.Decimal `json:"current_price"`
+	UnrealizedPnL decimal.Decimal `json:"unrealized_pnl"`
+	UpdatedAt     time.Time       `json:"updated_at"`
 }
 
 type PositionClosed struct {

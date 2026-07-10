@@ -117,6 +117,90 @@ func (s *NATSSubscriber) Subscribe(ctx context.Context, handler func(ports.Oppor
 	return nil
 }
 
+func (s *NATSSubscriber) SubscribeExitOrderRequest(ctx context.Context, handler func(ports.ExitOrderRequest)) error {
+	msgCh := make(chan *nats.Msg, 64)
+
+	sub, err := s.js.Subscribe("pqap.order.exit_request", func(msg *nats.Msg) {
+		select {
+		case msgCh <- msg:
+		default:
+			s.logger.Warn("exit order channel full, terming message")
+			msg.Term()
+		}
+	}, nats.Durable("execution-engine-exit"), nats.ManualAck())
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to pqap.order.exit_request: %w", err)
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				sub.Unsubscribe()
+				close(msgCh)
+				return
+			case msg, ok := <-msgCh:
+				if !ok {
+					return
+				}
+				var event ports.ExitOrderRequest
+				if err := json.Unmarshal(msg.Data, &event); err != nil {
+					s.logger.Error("failed to unmarshal exit order event", zap.Error(err))
+					msg.Term()
+					continue
+				}
+				handler(event)
+				msg.Ack()
+			}
+		}
+	}()
+
+	s.logger.Info("subscribed to pqap.order.exit_request")
+	return nil
+}
+
+func (s *NATSSubscriber) SubscribeCancelAllOrders(ctx context.Context, handler func(ports.CancelAllOrders)) error {
+	msgCh := make(chan *nats.Msg, 64)
+
+	sub, err := s.js.Subscribe("pqap.order.cancel_all", func(msg *nats.Msg) {
+		select {
+		case msgCh <- msg:
+		default:
+			s.logger.Warn("cancel all channel full, terming message")
+			msg.Term()
+		}
+	}, nats.Durable("execution-engine-cancel-all"), nats.ManualAck())
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to pqap.order.cancel_all: %w", err)
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				sub.Unsubscribe()
+				close(msgCh)
+				return
+			case msg, ok := <-msgCh:
+				if !ok {
+					return
+				}
+				var event ports.CancelAllOrders
+				if err := json.Unmarshal(msg.Data, &event); err != nil {
+					s.logger.Error("failed to unmarshal cancel all event", zap.Error(err))
+					msg.Term()
+					continue
+				}
+				handler(event)
+				msg.Ack()
+			}
+		}
+	}()
+
+	s.logger.Info("subscribed to pqap.order.cancel_all")
+	return nil
+}
+
 func (s *NATSSubscriber) Close() error {
 	if s.sub != nil {
 		s.sub.Unsubscribe()

@@ -1,6 +1,8 @@
 # Story 8.2: Event Contract Alignment — Fix NATS Subject & Schema Mismatches
 
-Status: ready-for-dev
+Status: in-progress
+
+baseline_commit: current
 
 ## Story
 
@@ -18,21 +20,21 @@ so that there is no silent data loss and all event flows work correctly end-to-e
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: ExitOrderRequest Handler (AC: 3)
-  - [ ] Subtask 1.1: Add ExitOrderRequest type to execution-engine ports
-  - [ ] Subtask 1.2: Add subscription handler in execution-engine
-  - [ ] Subtask 1.3: Implement exit order logic
-- [ ] Task 2: CancelAllOrders Handler (AC: 4)
-  - [ ] Subtask 2.1: Add CancelAllOrders type to execution-engine ports
-  - [ ] Subtask 2.2: Add subscription handler in execution-engine
-  - [ ] Subtask 2.3: Implement cancel-all logic
+- [x] Task 1: ExitOrderRequest Handler (AC: 3)
+  - [x] Subtask 1.1: Add ExitOrderRequest type to execution-engine ports
+  - [x] Subtask 1.2: Add subscription handler in execution-engine
+  - [x] Subtask 1.3: Implement exit order logic
+- [x] Task 2: CancelAllOrders Handler (AC: 4)
+  - [x] Subtask 2.1: Add CancelAllOrders type to execution-engine ports
+  - [x] Subtask 2.2: Add subscription handler in execution-engine
+  - [x] Subtask 2.3: Implement cancel-all logic
 - [ ] Task 3: CapitalUpdated Publisher (AC: 5)
   - [ ] Subtask 3.1: Add CapitalUpdated type to portfolio-manager
   - [ ] Subtask 3.2: Publish event when capital changes
-- [ ] Task 4: PositionUpdated Schema Alignment (AC: 2)
-  - [ ] Subtask 4.1: Align schema between position-manager and risk-manager
-- [ ] Task 5: OrderFilled Schema Alignment (AC: 2)
-  - [ ] Subtask 5.1: Add market_slug to risk-manager OrderFilledPayload
+- [x] Task 4: PositionUpdated Schema Alignment (AC: 2)
+  - [x] Subtask 4.1: Align schema between position-manager and risk-manager
+- [x] Task 5: OrderFilled Schema Alignment (AC: 2)
+  - [x] Subtask 5.1: Add market_slug to risk-manager OrderFilledPayload
 
 ## Issues to Fix
 
