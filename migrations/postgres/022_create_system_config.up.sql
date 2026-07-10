@@ -29,6 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_config_audit_log_key ON config_audit_log(config_k
 CREATE INDEX IF NOT EXISTS idx_config_audit_log_changed_at ON config_audit_log(changed_at DESC);
 
 -- Seed default config values
+-- Note: risk_defaults use JSON numbers, notification_settings use JSON booleans/numbers, api_keys use JSON strings
 INSERT INTO system_config (config_key, config_value, category, description, is_sensitive) VALUES
     ('daily_loss_limit_pct', '2.0', 'risk_defaults', 'Daily loss limit as percentage of capital', false),
     ('max_position_per_market_pct', '10.0', 'risk_defaults', 'Max position per market as percentage of capital', false),

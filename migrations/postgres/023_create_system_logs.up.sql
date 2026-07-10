@@ -19,6 +19,9 @@ EXCEPTION WHEN OTHERS THEN
     NULL;
 END $$;
 
+-- Create unique index on id for data integrity (hypertables don't support traditional PKs)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_system_logs_id ON system_logs (id, timestamp);
+
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs (level, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_system_logs_service ON system_logs (service, timestamp DESC);

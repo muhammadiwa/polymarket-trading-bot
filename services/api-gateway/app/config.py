@@ -30,6 +30,9 @@ class Config:
     ARB_ENGINE_URL: str = os.getenv("ARB_ENGINE_URL", "http://localhost:8092")
     EXECUTION_ENGINE_URL: str = os.getenv("EXECUTION_ENGINE_URL", "http://localhost:8093")
     POSITION_MANAGER_URL: str = os.getenv("POSITION_MANAGER_URL", "http://localhost:8095")
+    BACKTESTING_URL: str = os.getenv("BACKTESTING_URL", "http://localhost:8096")
+    AI_OPTIMIZER_URL: str = os.getenv("AI_OPTIMIZER_URL", "http://localhost:8097")
+    ACCOUNT_MANAGER_URL: str = os.getenv("ACCOUNT_MANAGER_URL", "http://localhost:8098")
     PROMETHEUS_URL: str = os.getenv("PROMETHEUS_URL", "http://localhost:9090")
     # Internal API key for service-to-service communication
     INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "")

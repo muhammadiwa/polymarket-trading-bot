@@ -236,15 +236,6 @@ async def check_rate_limit_async(username: str) -> None:
         check_rate_limit(username)
 
 
-def record_login_attempt(username: str) -> None:
-    # #15: Evict if store is too large
-    if len(_rate_limit_store) >= RATE_LIMIT_MAX_ENTRIES:
-        _evict_stale_rate_limit_entries_sync()
-    if username not in _rate_limit_store:
-        _rate_limit_store[username] = []
-    _rate_limit_store[username].append(time.time())
-
-
 def create_csrf_token_for_response(response: Response) -> str:
     token = generate_csrf_token()
     set_csrf_cookie(response, token)

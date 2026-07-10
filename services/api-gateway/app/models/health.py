@@ -23,6 +23,9 @@ class SystemHealthResponse(BaseModel):
     executionEngine: ServiceHealth
     riskManager: ServiceHealth
     positionManager: ServiceHealth
+    backtesting: Optional[ServiceHealth] = None
+    aiOptimizer: Optional[ServiceHealth] = None
+    accountManager: Optional[ServiceHealth] = None
     overall: str  # "healthy" | "degraded" | "unhealthy"
     lastUpdated: str
 

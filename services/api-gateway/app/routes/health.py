@@ -58,6 +58,9 @@ SERVICE_URLS = {
     "execution_engine": config.EXECUTION_ENGINE_URL,
     "risk_manager": config.RISK_MANAGER_URL,
     "position_manager": config.POSITION_MANAGER_URL,
+    "backtesting": config.BACKTESTING_URL,
+    "ai_optimizer": config.AI_OPTIMIZER_URL,
+    "account_manager": config.ACCOUNT_MANAGER_URL,
 }
 
 SERVICE_NAMES = {
@@ -66,6 +69,9 @@ SERVICE_NAMES = {
     "execution_engine": "Execution Engine",
     "risk_manager": "Risk Manager",
     "position_manager": "Position Manager",
+    "backtesting": "Backtesting",
+    "ai_optimizer": "AI Optimizer",
+    "account_manager": "Account Manager",
 }
 
 REDIS_KEY = "pqap:system:health"
@@ -297,6 +303,9 @@ async def _aggregate_health(include_alerts: bool = False) -> dict:
         "executionEngine": services.get("execution_engine", _empty_service_health("execution_engine")),
         "riskManager": services.get("risk_manager", _empty_service_health("risk_manager")),
         "positionManager": services.get("position_manager", _empty_service_health("position_manager")),
+        "backtesting": services.get("backtesting", _empty_service_health("backtesting")),
+        "aiOptimizer": services.get("ai_optimizer", _empty_service_health("ai_optimizer")),
+        "accountManager": services.get("account_manager", _empty_service_health("account_manager")),
         "overall": overall,
         "lastUpdated": now,
     }

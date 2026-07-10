@@ -29,11 +29,35 @@ export default function AdminPage() {
         </p>
       </Link>
 
-      <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
+      <Link
+        href="/admin/logs"
+        className="rounded-lg border border-gray-800 bg-gray-900 p-6 transition-colors hover:border-gray-600"
+      >
+        <h2 className="mb-2 text-lg font-semibold text-white">
+          Log Viewer
+        </h2>
+        <p className="text-gray-400">
+          View and filter system logs with full-text search
+        </p>
+      </Link>
+
+      <Link
+        href="/admin/database"
+        className="rounded-lg border border-gray-800 bg-gray-900 p-6 transition-colors hover:border-gray-600"
+      >
+        <h2 className="mb-2 text-lg font-semibold text-white">
+          Database Management
+        </h2>
+        <p className="text-gray-400">
+          Backup, restore, and cleanup database
+        </p>
+      </Link>
+
+      <div className="rounded-lg border border-gray-800 bg-gray-900 p-6 opacity-50">
         <h2 className="mb-2 text-lg font-semibold text-white">
           User Management
         </h2>
-        <p className="text-gray-400">Manage user accounts and roles</p>
+        <p className="text-gray-400">Coming soon - Manage user accounts and roles</p>
       </div>
     </div>
   );
