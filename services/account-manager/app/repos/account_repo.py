@@ -14,7 +14,7 @@ async def create_account(
     private_key_iv: bytes,
     private_key_tag: bytes,
 ) -> dict:
-    """Create a new account."""
+    """Create a new account with default risk limits."""
     row = await conn.fetchrow(
         """
         INSERT INTO accounts (name, wallet_address, private_key_encrypted, private_key_iv, private_key_tag)
@@ -23,6 +23,17 @@ async def create_account(
         """,
         name, wallet_address, private_key_encrypted, private_key_iv, private_key_tag,
     )
+
+    # Create default risk limits for the new account
+    await conn.execute(
+        """
+        INSERT INTO account_risk_limits (account_id)
+        VALUES ($1)
+        ON CONFLICT (account_id) DO NOTHING
+        """,
+        row["id"],
+    )
+
     return _row_to_account(row)
 
 
