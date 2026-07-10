@@ -34,4 +34,11 @@ app.include_router(portfolio.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    from app.services.nats_publisher import _nats_client
+    checks = {"status": "ok"}
+    if _nats_client and _nats_client.is_connected:
+        checks["nats"] = "connected"
+    else:
+        checks["nats"] = "disconnected"
+        checks["status"] = "degraded"
+    return checks

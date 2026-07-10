@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -6,8 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db import get_pool
 from app.middleware.auth import verify_jwt
+from app.models.events import CapitalUpdated, CapitalUpdatedPayload
 from app.models.portfolio import PortfolioOverview, RebalanceRequest, RebalanceResponse, TierTransition
 from app.repos import portfolio_repo
+from app.services.nats_publisher import publish_capital_updated
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,18 @@ async def update_capital(
     pool = await get_pool()
     async with pool.acquire() as conn:
         overview = await portfolio_repo.update_capital(conn, total_capital, deployed_capital, account_id)
+
+    # Publish CapitalUpdated event
+    event = CapitalUpdated(
+        payload=CapitalUpdatedPayload(
+            total_capital=Decimal(str(overview.total_capital)),
+            daily_pnl=Decimal(str(overview.daily_pnl)),
+            unrealized_pnl=Decimal(str(overview.total_pnl)),
+            capital_tier="default",  # TODO: get from tier system
+        )
+    )
+    await publish_capital_updated(event)
+
     return overview
 
 

@@ -200,6 +200,37 @@ func main() {
 
 	subscribeEmergencyStop(ctx, natsPublisher, cb, log, &wg)
 
+	// Subscribe to exit order requests from position-manager
+	err = natsSubscriber.SubscribeExitOrderRequest(ctx, func(event ports.ExitOrderRequest) {
+		log.Info("received exit order request",
+			zap.String("position_id", event.Payload.PositionID),
+			zap.String("market_id", event.Payload.MarketID),
+			zap.String("reason", event.Payload.Reason),
+		)
+		// TODO: Implement exit order logic
+		// 1. Find open orders for the position
+		// 2. Cancel them or place exit order
+		// 3. Publish OrderCancelled or OrderFilled event
+	})
+	if err != nil {
+		log.Error("failed to subscribe to exit order requests", zap.Error(err))
+	}
+
+	// Subscribe to cancel-all-orders from risk-manager (emergency stop)
+	err = natsSubscriber.SubscribeCancelAllOrders(ctx, func(event ports.CancelAllOrders) {
+		log.Warn("received cancel all orders request",
+			zap.String("reason", event.Payload.Reason),
+			zap.String("user_id", event.Payload.UserID),
+		)
+		// TODO: Implement cancel-all logic
+		// 1. Get all open orders from CLOB
+		// 2. Cancel each one
+		// 3. Publish OrderCancelled events
+	})
+	if err != nil {
+		log.Error("failed to subscribe to cancel all orders", zap.Error(err))
+	}
+
 	resumeHandler := circuitbreaker.NewResumeHandler(cb, cfg.JWTSecret, log)
 
 	metricsServer := startMetricsServer(cfg.MetricsBindAddress, cfg.MetricsPort, resumeHandler, log, natsPublisher, postgresRepo, redisRisk)
