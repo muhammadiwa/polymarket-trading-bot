@@ -28,7 +28,14 @@ SESSION_TTL = 3600  # 1 hour
 async def _get_redis() -> aioredis.Redis:
     global _redis
     if _redis is None:
-        _redis = aioredis.from_url(config.REDIS_URL, decode_responses=True)
+        try:
+            _redis = aioredis.from_url(config.REDIS_URL, decode_responses=True)
+            # Test connection
+            await _redis.ping()
+        except Exception as e:
+            logger.error("failed to connect to Redis", extra={"error": str(e)})
+            _redis = None
+            raise HTTPException(status_code=503, detail="Redis unavailable")
     return _redis
 
 

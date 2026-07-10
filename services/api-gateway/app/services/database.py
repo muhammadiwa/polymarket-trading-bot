@@ -1,9 +1,11 @@
 import asyncio
 import gzip
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from app.config import config
 
@@ -51,7 +53,6 @@ class DatabaseService:
 
         try:
             # Parse connection URL to extract components
-            from urllib.parse import urlparse
             parsed = urlparse(config.POSTGRES_URL)
             db_name = parsed.path.lstrip("/")
             db_host = parsed.hostname or "localhost"
@@ -71,7 +72,6 @@ class DatabaseService:
             ]
 
             # Set PGPASSWORD in environment
-            import os
             env = os.environ.copy()
             env["PGPASSWORD"] = db_password
 
