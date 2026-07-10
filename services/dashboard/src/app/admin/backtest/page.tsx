@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BacktestRequest, BacktestResults, BacktestStatus, SimulationConfig } from "@/types";
 import { startBacktest, fetchBacktestStatus, fetchBacktestResults } from "@/lib/api";
 
@@ -21,6 +22,18 @@ export default function BacktestPage() {
   const [status, setStatus] = useState<BacktestStatus | null>(null);
   const [results, setResults] = useState<BacktestResults | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadingResults, setLoadingResults] = useState(false);
+  const [tradesToShow, setTradesToShow] = useState(50);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+      }
+    };
+  }, []);
 
   const pollStatus = useCallback(async (runId: string) => {
     const poll = async () => {
@@ -29,9 +42,14 @@ export default function BacktestPage() {
         setStatus(s);
 
         if (s.status === "completed") {
-          const r = await fetchBacktestResults(runId);
-          setResults(r);
-          setRunning(false);
+          setLoadingResults(true);
+          try {
+            const r = await fetchBacktestResults(runId);
+            setResults(r);
+          } finally {
+            setLoadingResults(false);
+            setRunning(false);
+          }
           return;
         }
 
@@ -42,7 +60,7 @@ export default function BacktestPage() {
         }
 
         // Continue polling
-        setTimeout(poll, 1000);
+        pollTimerRef.current = setTimeout(poll, 1000);
       } catch (err) {
         setError("Failed to fetch status");
         setRunning(false);
@@ -54,6 +72,11 @@ export default function BacktestPage() {
   const handleRun = async () => {
     if (!strategyId || !startDate || !endDate) {
       setError("Please fill all required fields");
+      return;
+    }
+
+    if (startDate >= endDate) {
+      setError("End date must be after start date");
       return;
     }
 
@@ -81,7 +104,12 @@ export default function BacktestPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white">Backtesting</h2>
+      <div className="flex items-center gap-4">
+        <Link href="/admin" className="text-gray-400 hover:text-white">
+          ← Admin
+        </Link>
+        <h2 className="text-xl font-semibold text-white">Backtesting</h2>
+      </div>
 
       {error && (
         <div className="rounded-md bg-red-900/50 p-4 text-red-200">{error}</div>
@@ -227,8 +255,15 @@ export default function BacktestPage() {
         </div>
       )}
 
+      {/* Loading Results */}
+      {loadingResults && (
+        <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
+          <p className="text-gray-400">Loading results...</p>
+        </div>
+      )}
+
       {/* Results */}
-      {results && (
+      {!loadingResults && results && (
         <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
           <h3 className="mb-4 text-lg font-semibold text-white">Results</h3>
 
@@ -237,7 +272,7 @@ export default function BacktestPage() {
             <div className="rounded-md bg-gray-800 p-3">
               <span className="text-sm text-gray-400">Total PnL</span>
               <p className={`text-xl font-bold ${
-                parseFloat(results.summary.totalPnl) >= 0 ? "text-green-400" : "text-red-400"
+                !isNaN(parseFloat(results.summary.totalPnl)) && parseFloat(results.summary.totalPnl) >= 0 ? "text-green-400" : "text-red-400"
               }`}>
                 ${results.summary.totalPnl}
               </p>
@@ -271,7 +306,7 @@ export default function BacktestPage() {
                 </tr>
               </thead>
               <tbody>
-                {results.trades.slice(0, 50).map((trade, i) => (
+                {results.trades.slice(0, tradesToShow).map((trade, i) => (
                   <tr key={i} className="border-b border-gray-800">
                     <td className="py-2 text-gray-400">{new Date(trade.timestamp).toLocaleTimeString()}</td>
                     <td className="py-2 text-white">{trade.marketId}</td>
@@ -284,7 +319,9 @@ export default function BacktestPage() {
                     </td>
                     <td className="py-2 text-white">${trade.price}</td>
                     <td className="py-2 text-white">{trade.quantity}</td>
-                    <td className={`py-2 ${parseFloat(trade.pnl) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    <td className={`py-2 ${
+                      !isNaN(parseFloat(trade.pnl)) && parseFloat(trade.pnl) >= 0 ? "text-green-400" : "text-red-400"
+                    }`}>
                       ${trade.pnl}
                     </td>
                   </tr>
@@ -292,6 +329,16 @@ export default function BacktestPage() {
               </tbody>
             </table>
           </div>
+          {results.trades.length > tradesToShow && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => setTradesToShow((prev) => prev + 50)}
+                className="rounded-md bg-gray-800 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+              >
+                Show More ({results.trades.length - tradesToShow} remaining)
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
