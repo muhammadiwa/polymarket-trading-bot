@@ -47,41 +47,20 @@ func NewPostgresRepo(ctx context.Context, url string, logger *zap.Logger) (*Post
 		logger: logger,
 	}
 
-	if err := repo.ensureSchema(ctx); err != nil {
+	// Schema is managed by migrations
+	// positions: migration 028_unify_positions
+	// Only create position-manager specific tables
+
+	if err := repo.ensurePositionTables(ctx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("failed to ensure schema: %w", err)
+		return nil, fmt.Errorf("failed to ensure position tables: %w", err)
 	}
 
 	return repo, nil
 }
 
-func (r *PostgresRepo) ensureSchema(ctx context.Context) error {
-	positionsQuery := `
-		CREATE TABLE IF NOT EXISTS positions (
-			id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			market_id       TEXT NOT NULL,
-			market_slug     TEXT NOT NULL,
-			side            TEXT NOT NULL,
-			entry_price     NUMERIC(10,4) NOT NULL,
-			current_price   NUMERIC(10,4) NOT NULL,
-			quantity        NUMERIC(18,8) NOT NULL,
-			unrealized_pnl  NUMERIC(18,8) NOT NULL DEFAULT 0,
-			realized_pnl    NUMERIC(18,8) NOT NULL DEFAULT 0,
-			status          TEXT NOT NULL DEFAULT 'OPEN',
-			strategy_id     TEXT NOT NULL,
-			entry_order_id  UUID NOT NULL,
-			exit_order_id   UUID DEFAULT NULL,
-			opened_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			closed_at       TIMESTAMPTZ DEFAULT NULL,
-			settled_at      TIMESTAMPTZ DEFAULT NULL,
-			account_id      UUID DEFAULT NULL,
-			created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		);
-	`
-	if _, err := r.pool.Exec(ctx, positionsQuery); err != nil {
-		return fmt.Errorf("failed to create positions table: %w", err)
-	}
+func (r *PostgresRepo) ensurePositionTables(ctx context.Context) error {
+	// Create position-manager specific tables (not managed by shared migrations)
 
 	historyQuery := `
 		CREATE TABLE IF NOT EXISTS position_history (
@@ -89,8 +68,8 @@ func (r *PostgresRepo) ensureSchema(ctx context.Context) error {
 			market_id       TEXT NOT NULL,
 			market_slug     TEXT NOT NULL,
 			side            TEXT NOT NULL,
-			entry_price     NUMERIC(10,4) NOT NULL,
-			exit_price      NUMERIC(10,4) NOT NULL,
+			entry_price     NUMERIC(18,8) NOT NULL,
+			exit_price      NUMERIC(18,8) NOT NULL,
 			quantity        NUMERIC(18,8) NOT NULL,
 			realized_pnl    NUMERIC(18,8) NOT NULL,
 			strategy_id     TEXT NOT NULL,
@@ -137,10 +116,6 @@ func (r *PostgresRepo) ensureSchema(ctx context.Context) error {
 	}
 
 	indices := []string{
-		`CREATE INDEX IF NOT EXISTS idx_positions_market_id ON positions(market_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_positions_status ON positions(status)`,
-		`CREATE INDEX IF NOT EXISTS idx_positions_strategy_id ON positions(strategy_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_positions_account_id ON positions(account_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_position_history_market_id ON position_history(market_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_position_history_strategy_id ON position_history(strategy_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_position_history_closed_at ON position_history(closed_at)`,

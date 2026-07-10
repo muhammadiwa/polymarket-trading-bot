@@ -46,54 +46,12 @@ func NewTimescaleRepo(url string, logger *zap.Logger) (*TimescaleRepo, error) {
 		logger: logger,
 	}
 
-	if err := repo.ensureSchema(context.Background()); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("failed to ensure schema: %w", err)
-	}
+	// Schema is managed by migrations (007_create_opportunities)
+	// NOTE: There is a known conflict between migration 007 (uses 'timestamp' column)
+	// and this service (uses 'time' column). This needs to be resolved in a future migration.
+	// For now, the migration is the source of truth.
 
 	return repo, nil
-}
-
-func (r *TimescaleRepo) ensureSchema(ctx context.Context) error {
-	query := `
-		CREATE TABLE IF NOT EXISTS opportunities (
-			time              TIMESTAMPTZ NOT NULL,
-			opportunity_id    UUID NOT NULL,
-			market_id         TEXT NOT NULL,
-			yes_price         NUMERIC(10,4) NOT NULL,
-			no_price          NUMERIC(10,4) NOT NULL,
-			spread            NUMERIC(10,4) NOT NULL,
-			liquidity         NUMERIC(10,8) NOT NULL,
-			fill_probability  NUMERIC(10,8) NOT NULL,
-			score             NUMERIC(10,8) NOT NULL,
-			filter_reason     TEXT DEFAULT '',
-			latency_ms        INTEGER NOT NULL,
-			account_id        UUID DEFAULT NULL,
-			filled            BOOLEAN DEFAULT NULL
-		);
-	`
-
-	_, err := r.pool.Exec(ctx, query)
-	if err != nil {
-		return fmt.Errorf("failed to create opportunities table: %w", err)
-	}
-
-	_, err = r.pool.Exec(ctx, "SELECT create_hypertable('opportunities', 'time', if_not_exists => TRUE)")
-	if err != nil {
-		r.logger.Warn("hypertable creation (may already exist)", zap.Error(err))
-	}
-
-	_, err = r.pool.Exec(ctx, `CREATE UNIQUE INDEX IF NOT EXISTS idx_opportunities_id_time ON opportunities (opportunity_id, time)`)
-	if err != nil {
-		r.logger.Warn("unique index creation (may already exist)", zap.Error(err))
-	}
-
-	_, err = r.pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_opportunities_market_time ON opportunities (market_id, time)`)
-	if err != nil {
-		r.logger.Warn("market time index creation (may already exist)", zap.Error(err))
-	}
-
-	return nil
 }
 
 func ValidateMarketID(marketID string) error {

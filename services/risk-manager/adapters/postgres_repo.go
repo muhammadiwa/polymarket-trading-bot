@@ -44,95 +44,10 @@ func NewPostgresRepo(url string, logger *zap.Logger) (*PostgresRepo, error) {
 		logger: logger,
 	}
 
-	if err := repo.ensureSchema(context.Background()); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("failed to ensure schema: %w", err)
-	}
+	// Schema is managed by migrations (027_unify_risk_events, 028_unify_positions)
+	// No ensureSchema() call needed
 
 	return repo, nil
-}
-
-func (r *PostgresRepo) ensureSchema(ctx context.Context) error {
-	query := `
-		CREATE TABLE IF NOT EXISTS risk_events (
-			id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			decision                TEXT NOT NULL,
-			reason                  TEXT NOT NULL,
-			market_id               TEXT DEFAULT NULL,
-			strategy_id             TEXT DEFAULT NULL,
-			trade_size              NUMERIC(18,8) NOT NULL DEFAULT 0,
-			current_exposure        NUMERIC(18,8) NOT NULL DEFAULT 0,
-			limit_value             NUMERIC(18,8) NOT NULL DEFAULT 0,
-			daily_budget_remaining  NUMERIC(18,8) NOT NULL,
-			capital                 NUMERIC(18,8) NOT NULL,
-			context                 JSONB DEFAULT '{}',
-			account_id              UUID DEFAULT NULL,
-			created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		);
-	`
-
-	_, err := r.pool.Exec(ctx, query)
-	if err != nil {
-		return fmt.Errorf("failed to create risk_events table: %w", err)
-	}
-
-	positionsQuery := `
-		CREATE TABLE IF NOT EXISTS positions (
-			position_id   TEXT PRIMARY KEY,
-			market_id     TEXT NOT NULL,
-			strategy_id   TEXT NOT NULL,
-			side          TEXT NOT NULL,
-			entry_price   NUMERIC(18,8) NOT NULL,
-			current_price NUMERIC(18,8) NOT NULL,
-			quantity      NUMERIC(18,8) NOT NULL,
-			realized_pnl  NUMERIC(18,8) NOT NULL DEFAULT 0,
-			status        TEXT NOT NULL DEFAULT 'open',
-			account_id    UUID DEFAULT NULL,
-			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		);
-	`
-	if _, err := r.pool.Exec(ctx, positionsQuery); err != nil {
-		return fmt.Errorf("failed to create positions table: %w", err)
-	}
-
-	correlationGroupsQuery := `
-		CREATE TABLE IF NOT EXISTS correlation_groups (
-			id                  TEXT PRIMARY KEY,
-			name                TEXT NOT NULL,
-			detection_method    TEXT NOT NULL,
-			market_ids          TEXT[] NOT NULL,
-			max_positions       INT NOT NULL DEFAULT 3,
-			confidence          NUMERIC(3,2) NOT NULL DEFAULT 0.0,
-			last_updated        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		);
-	`
-	if _, err := r.pool.Exec(ctx, correlationGroupsQuery); err != nil {
-		return fmt.Errorf("failed to create correlation_groups table: %w", err)
-	}
-
-	indexes := []string{
-		`CREATE INDEX IF NOT EXISTS idx_risk_events_created_at ON risk_events(created_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_risk_events_decision ON risk_events(decision)`,
-		`CREATE INDEX IF NOT EXISTS idx_risk_events_reason ON risk_events(reason)`,
-		`CREATE INDEX IF NOT EXISTS idx_risk_events_market_id ON risk_events(market_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_risk_events_strategy_id ON risk_events(strategy_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_risk_events_account_id ON risk_events(account_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_positions_market_id ON positions(market_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_positions_strategy_id ON positions(strategy_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_positions_status ON positions(status)`,
-		`CREATE INDEX IF NOT EXISTS idx_correlation_groups_detection_method ON correlation_groups(detection_method)`,
-		`CREATE INDEX IF NOT EXISTS idx_correlation_groups_last_updated ON correlation_groups(last_updated)`,
-	}
-
-	for _, idx := range indexes {
-		if _, err := r.pool.Exec(ctx, idx); err != nil {
-			r.logger.Warn("index creation (may already exist)", zap.Error(err))
-		}
-	}
-
-	return nil
 }
 
 func (r *PostgresRepo) InsertRiskEvent(ctx context.Context, event ports.RiskDecision) error {

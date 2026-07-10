@@ -43,35 +43,21 @@ func NewPostgresRepo(url string, logger *zap.Logger) (*PostgresRepo, error) {
 		logger: logger,
 	}
 
-	if err := repo.ensureSchema(context.Background()); err != nil {
+	// Schema is managed by migrations
+	// risk_events: migration 027_unify_risk_events
+	// trades: migration 002_create_trades
+	// Only create execution-engine specific tables
+
+	if err := repo.ensureExecutionTables(context.Background()); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("failed to ensure schema: %w", err)
+		return nil, fmt.Errorf("failed to ensure execution tables: %w", err)
 	}
 
 	return repo, nil
 }
 
-func (r *PostgresRepo) ensureSchema(ctx context.Context) error {
-	// NOTE: trades table is managed exclusively by migrations (002_create_trades.up.sql).
-	// Do NOT create it here to avoid dual-schema conflicts.
-
-	riskEventsQuery := `
-		CREATE TABLE IF NOT EXISTS risk_events (
-			id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			market_id   TEXT NOT NULL,
-			strategy_id TEXT NOT NULL,
-			order_size  NUMERIC(10,8) NOT NULL,
-			allowed     BOOLEAN NOT NULL,
-			reason      TEXT NOT NULL DEFAULT '',
-			latency_ms  INTEGER NOT NULL,
-			created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-		);
-	`
-
-	_, err := r.pool.Exec(ctx, riskEventsQuery)
-	if err != nil {
-		return fmt.Errorf("failed to create risk_events table: %w", err)
-	}
+func (r *PostgresRepo) ensureExecutionTables(ctx context.Context) error {
+	// Create execution-engine specific tables (not managed by shared migrations)
 
 	partialFillsQuery := `
 		CREATE TABLE IF NOT EXISTS atomic_partial_fills (
@@ -90,7 +76,7 @@ func (r *PostgresRepo) ensureSchema(ctx context.Context) error {
 		);
 	`
 
-	_, err = r.pool.Exec(ctx, partialFillsQuery)
+	_, err := r.pool.Exec(ctx, partialFillsQuery)
 	if err != nil {
 		return fmt.Errorf("failed to create atomic_partial_fills table: %w", err)
 	}
@@ -113,18 +99,6 @@ func (r *PostgresRepo) ensureSchema(ctx context.Context) error {
 	_, err = r.pool.Exec(ctx, circuitBreakerEventsQuery)
 	if err != nil {
 		return fmt.Errorf("failed to create circuit_breaker_events table: %w", err)
-	}
-
-	// NOTE: trades indexes are managed by migrations, not here.
-
-	_, err = r.pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_risk_events_market_id ON risk_events (market_id)`)
-	if err != nil {
-		r.logger.Warn("index creation (may already exist)", zap.Error(err))
-	}
-
-	_, err = r.pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_risk_events_created_at ON risk_events (created_at)`)
-	if err != nil {
-		r.logger.Warn("index creation (may already exist)", zap.Error(err))
 	}
 
 	_, err = r.pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_partial_fills_pair_id ON atomic_partial_fills (pair_id)`)
