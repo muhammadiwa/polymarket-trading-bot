@@ -103,7 +103,7 @@ development_status:
   epic-8: backlog
   8-1-schema-unification-ensure-schema-to-migrations: review
   8-2-event-contract-alignment-nats-subject-schema: review
-  8-3-frontend-backtesting-ui: backlog
+  8-3-frontend-backtesting-ui: review
   8-4-frontend-ai-optimizer-ui: backlog
   8-5-frontend-account-management-ui: backlog
   8-6-integration-fixes-data-flow-error-handling: backlog

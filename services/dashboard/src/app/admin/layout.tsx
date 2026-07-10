@@ -11,6 +11,7 @@ const navItems = [
   { href: "/admin/health", label: "System Health" },
   { href: "/admin/logs", label: "Logs" },
   { href: "/admin/database", label: "Database" },
+  { href: "/admin/backtest", label: "Backtest" },
 ];
 
 export default function AdminLayout({

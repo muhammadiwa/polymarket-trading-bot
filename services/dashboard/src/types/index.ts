@@ -322,3 +322,83 @@ export interface RiskLimitsUpdate {
   maxPositionPerStrategy?: string;
   drawdownThreshold?: string;
 }
+
+// Backtesting Types (Epic 5)
+export interface SimulationConfig {
+  slippagePct: number;
+  partialFillProbability: number;
+  latencyMs: number;
+  minFillRatio: number;
+  rngSeed: number;
+}
+
+export interface BacktestRequest {
+  strategyId: string;
+  startDate: string;
+  endDate: string;
+  simulation?: SimulationConfig;
+}
+
+export interface BacktestStatus {
+  runId: string;
+  status: string;
+  progress?: string;
+  startedAt?: string;
+  completedAt?: string;
+  errorMessage?: string;
+}
+
+export interface BacktestSummary {
+  totalPnl: string;
+  totalTrades: number;
+  winRate: string;
+  sharpeRatio: string;
+  maxDrawdown: string;
+  profitFactor?: string;
+  var95?: string;
+}
+
+export interface BacktestTrade {
+  timestamp: string;
+  marketId: string;
+  side: string;
+  price: string;
+  quantity: string;
+  slippage: string;
+  pnl: string;
+  lookaheadWarning: boolean;
+}
+
+export interface BacktestResults {
+  summary: BacktestSummary;
+  trades: BacktestTrade[];
+  warnings: any[];
+  dailyPnl?: any[];
+}
+
+export interface SweepParameter {
+  name: string;
+  minValue: number;
+  maxValue: number;
+  step: number;
+}
+
+export interface SweepRequest {
+  strategyId: string;
+  startDate: string;
+  endDate: string;
+  parameters: SweepParameter[];
+  rankBy: string;
+  simulation?: SimulationConfig;
+}
+
+export interface SweepResult {
+  parameters: Record<string, number>;
+  summary: BacktestSummary;
+}
+
+export interface SweepResults {
+  results: SweepResult[];
+  best?: SweepResult;
+  totalConfigs: number;
+}

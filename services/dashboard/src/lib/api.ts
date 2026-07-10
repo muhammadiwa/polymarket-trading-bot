@@ -22,6 +22,11 @@ import type {
   CrossAccountRisk,
   PerAccountRiskLimits,
   RiskLimitsUpdate,
+  BacktestRequest,
+  BacktestStatus,
+  BacktestResults,
+  SweepRequest,
+  SweepResults,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -383,4 +388,25 @@ export async function fetchRiskLimits(accountId: string): Promise<PerAccountRisk
 
 export async function updateRiskLimits(accountId: string, limits: RiskLimitsUpdate): Promise<PerAccountRiskLimits> {
   return putRequest<PerAccountRiskLimits>(`/api/risk/limits/${accountId}`, limits);
+}
+
+// Backtesting API (Epic 5)
+export async function startBacktest(request: BacktestRequest): Promise<BacktestStatus> {
+  return postRequest<BacktestStatus>("/api/backtesting/run", request);
+}
+
+export async function fetchBacktestStatus(runId: string): Promise<BacktestStatus> {
+  return request<BacktestStatus>(`/api/backtesting/${runId}/status`);
+}
+
+export async function fetchBacktestResults(runId: string): Promise<BacktestResults> {
+  return request<BacktestResults>(`/api/backtesting/${runId}/results`);
+}
+
+export async function fetchBacktestReport(runId: string): Promise<any> {
+  return request<any>(`/api/backtesting/${runId}/report`);
+}
+
+export async function runParameterSweep(request: SweepRequest): Promise<SweepResults> {
+  return postRequest<SweepResults>("/api/backtesting/sweep", request);
 }
