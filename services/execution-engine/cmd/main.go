@@ -69,7 +69,7 @@ func main() {
 	breakerLogger := logger.NewBreakerLogger(postgresRepo, log)
 	defer breakerLogger.Close()
 
-	redisRisk, err := adapters.NewRedisRisk(cfg.RedisURL, log)
+	redisRisk, err := adapters.NewRedisRisk(cfg.RedisURL, log, cfg.MarketPositionLimit, cfg.StrategyPositionLimit)
 	if err != nil {
 		log.Fatal("failed to connect to Redis", zap.Error(err))
 	}

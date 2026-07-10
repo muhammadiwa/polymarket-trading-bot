@@ -31,6 +31,8 @@ type Config struct {
 	MetricsBindAddress       string
 	LogLevel                 string
 	JWTSecret                string
+	MarketPositionLimit      int64
+	StrategyPositionLimit    int64
 }
 
 func Load() *Config {
@@ -56,6 +58,8 @@ func Load() *Config {
 		MetricsBindAddress:         envOrDefault("EXECUTION_METRICS_BIND", "0.0.0.0"),
 		LogLevel:                   envOrDefault("EXECUTION_LOG_LEVEL", "info"),
 		JWTSecret:                  envOrDefault("EXECUTION_JWT_SECRET", ""),
+		MarketPositionLimit:        envInt64OrDefault("EXECUTION_MARKET_POSITION_LIMIT", 10000),
+		StrategyPositionLimit:      envInt64OrDefault("EXECUTION_STRATEGY_POSITION_LIMIT", 5000),
 	}
 }
 
@@ -147,6 +151,17 @@ func envIntOrDefault(key string, defaultVal int) int {
 			return i
 		}
 		log.Printf("warning: invalid int value for %s=%q, using default %v", key, v, defaultVal)
+	}
+	return defaultVal
+}
+
+func envInt64OrDefault(key string, defaultVal int64) int64 {
+	if v := os.Getenv(key); v != "" {
+		i, err := strconv.ParseInt(v, 10, 64)
+		if err == nil {
+			return i
+		}
+		log.Printf("warning: invalid int64 value for %s=%q, using default %v", key, v, defaultVal)
 	}
 	return defaultVal
 }

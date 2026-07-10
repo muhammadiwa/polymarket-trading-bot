@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import uuid
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -92,7 +93,6 @@ async def step_forward(session_id: str, _user: dict = Depends(verify_jwt)):
     opp = opportunities[idx]
     session["index"] = idx + 1
 
-    from decimal import Decimal
     ts = str(opp.get("detected_at", ""))
     market_id = opp.get("market_id", "")
     spread = Decimal(str(opp.get("spread", "0")))
