@@ -44,7 +44,11 @@ async def ingest_log(
     """Ingest a log entry. Requires internal API key."""
     ADMIN_LOG_INGESTION_TOTAL.inc()
 
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -87,7 +91,11 @@ async def query_logs(
 
     start_time = time.monotonic()
 
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
     async with pool.acquire() as conn:
         # Build dynamic query
         conditions = []
@@ -165,7 +173,11 @@ async def list_services(user: dict = Depends(extract_user)):
     """List available services from logs. Requires admin role."""
     require_admin(user)
 
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT DISTINCT service FROM system_logs ORDER BY service"

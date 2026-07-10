@@ -96,8 +96,11 @@ async def get_restore_confirm_token(
     require_admin(user)
 
     # Verify backup exists
-    from app.db import get_pool
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
     async with pool.acquire() as conn:
         backup = await conn.fetchrow(
             "SELECT * FROM database_backups WHERE id = $1 AND status = 'completed'",
