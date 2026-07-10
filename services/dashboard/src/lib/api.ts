@@ -27,6 +27,12 @@ import type {
   BacktestResults,
   SweepRequest,
   SweepResults,
+  Suggestion,
+  SuggestionListResponse,
+  AnalysisResult,
+  ABTest,
+  ABTestResultSummary,
+  OverfittingAnalysis,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -409,4 +415,44 @@ export async function fetchBacktestReport(runId: string): Promise<any> {
 
 export async function runParameterSweep(request: SweepRequest): Promise<SweepResults> {
   return postRequest<SweepResults>("/api/backtesting/sweep", request);
+}
+
+// AI Optimizer API (Epic 6)
+export async function runAnalysis(strategyId: string, minTrades = 100): Promise<AnalysisResult> {
+  return postRequest<AnalysisResult>(`/api/optimizer/analyze?strategy_id=${strategyId}&min_trades=${minTrades}`);
+}
+
+export async function fetchSuggestions(strategyId?: string, status?: string, limit = 50, offset = 0): Promise<SuggestionListResponse> {
+  const params = new URLSearchParams();
+  if (strategyId) params.set("strategy_id", strategyId);
+  if (status) params.set("status", status);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  return request<SuggestionListResponse>(`/api/optimizer/suggestions?${params.toString()}`);
+}
+
+export async function approveSuggestion(suggestionId: string): Promise<Suggestion> {
+  return postRequest<Suggestion>(`/api/optimizer/suggestions/${suggestionId}/approve`);
+}
+
+export async function rejectSuggestion(suggestionId: string): Promise<Suggestion> {
+  return postRequest<Suggestion>(`/api/optimizer/suggestions/${suggestionId}/reject`);
+}
+
+export async function startABTest(suggestionId: string, minSampleSize?: number): Promise<ABTest> {
+  const body: any = {};
+  if (minSampleSize) body.min_sample_size = minSampleSize;
+  return postRequest<ABTest>(`/api/optimizer/suggestions/${suggestionId}/start-ab-test`, body);
+}
+
+export async function fetchABTest(abTestId: string): Promise<ABTest> {
+  return request<ABTest>(`/api/optimizer/ab-tests/${abTestId}`);
+}
+
+export async function fetchABTestSummary(abTestId: string): Promise<ABTestResultSummary> {
+  return request<ABTestResultSummary>(`/api/optimizer/ab-tests/${abTestId}/summary`);
+}
+
+export async function fetchOverfittingAnalysis(suggestionId: string): Promise<OverfittingAnalysis> {
+  return request<OverfittingAnalysis>(`/api/optimizer/suggestions/${suggestionId}/overfitting-analysis`);
 }

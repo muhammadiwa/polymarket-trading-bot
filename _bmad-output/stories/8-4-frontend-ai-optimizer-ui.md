@@ -1,6 +1,8 @@
 # Story 8.4: Frontend — AI Optimizer UI (Epic 6)
 
-Status: ready-for-dev
+Status: in-progress
+
+baseline_commit: current
 
 ## Story
 
@@ -10,24 +12,24 @@ so that I can improve trading performance based on data-driven insights.
 
 ## Acceptance Criteria
 
-- [ ] Suggestions page with approve/reject actions
+- [x] Suggestions page with approve/reject actions
 - [ ] A/B test monitoring page
-- [ ] Overfitting analysis display
-- [ ] API functions added to api.ts
+- [x] Overfitting analysis display
+- [x] API functions added to api.ts
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add API functions to api.ts
-  - [ ] Subtask 1.1: Add optimizer API functions
-  - [ ] Subtask 1.2: Add A/B test API functions
-- [ ] Task 2: Add TypeScript types
-  - [ ] Subtask 2.1: Add optimizer types to types/index.ts
-- [ ] Task 3: Create Suggestions Page
-  - [ ] Subtask 3.1: Create suggestions list with approve/reject
-  - [ ] Subtask 3.2: Add navigation to admin layout
+- [x] Task 1: Add API functions to api.ts
+  - [x] Subtask 1.1: Add optimizer API functions
+  - [x] Subtask 1.2: Add A/B test API functions
+- [x] Task 2: Add TypeScript types
+  - [x] Subtask 2.1: Add optimizer types to types/index.ts
+- [x] Task 3: Create Suggestions Page
+  - [x] Subtask 3.1: Create suggestions list with approve/reject
+  - [x] Subtask 3.2: Add navigation to admin layout
 - [ ] Task 4: Create A/B Test Page
   - [ ] Subtask 4.1: Create A/B test monitoring view
-  - [ ] Subtask 4.2: Add overfitting analysis display
+  - [x] Subtask 4.2: Add overfitting analysis display
 
 ## API Endpoints
 

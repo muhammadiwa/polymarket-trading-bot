@@ -65,6 +65,18 @@ export default function AdminPage() {
         </p>
       </Link>
 
+      <Link
+        href="/admin/suggestions"
+        className="rounded-lg border border-gray-800 bg-gray-900 p-6 transition-colors hover:border-gray-600"
+      >
+        <h2 className="mb-2 text-lg font-semibold text-white">
+          AI Optimizer
+        </h2>
+        <p className="text-gray-400">
+          Analyze patterns and optimize strategy parameters with AI
+        </p>
+      </Link>
+
       <div className="rounded-lg border border-gray-800 bg-gray-900 p-6 opacity-50">
         <h2 className="mb-2 text-lg font-semibold text-white">
           User Management

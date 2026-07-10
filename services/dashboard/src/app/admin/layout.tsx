@@ -12,6 +12,7 @@ const navItems = [
   { href: "/admin/logs", label: "Logs" },
   { href: "/admin/database", label: "Database" },
   { href: "/admin/backtest", label: "Backtest" },
+  { href: "/admin/suggestions", label: "AI Optimizer" },
 ];
 
 export default function AdminLayout({

@@ -402,3 +402,66 @@ export interface SweepResults {
   best?: SweepResult;
   totalConfigs: number;
 }
+
+// AI Optimizer Types (Epic 6)
+export interface Suggestion {
+  id: string;
+  strategyId: string;
+  patternType: string;
+  parameterName: string;
+  currentValue: string;
+  suggestedValue: string;
+  expectedImpact: string;
+  confidence: number;
+  status: 'pending' | 'approved' | 'rejected';
+  isOverfitting: boolean;
+  degradationPct: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SuggestionListResponse {
+  suggestions: Suggestion[];
+  total: number;
+}
+
+export interface AnalysisResult {
+  patternsFound: number;
+  suggestionsGenerated: number;
+  strategyId: string;
+}
+
+export interface ABTest {
+  id: string;
+  suggestionId: string;
+  strategyId: string;
+  status: 'running' | 'completed' | 'failed';
+  minSampleSize: number;
+  currentSampleSize: number;
+  pValue: string | null;
+  meanDifference: string | null;
+  recommendation: string | null;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export interface ABTestResultSummary {
+  abTestId: string;
+  controlMean: string;
+  treatmentMean: string;
+  meanDifference: string;
+  pValue: string;
+  confidenceInterval: [string, string];
+  recommendation: string;
+  isSignificant: boolean;
+}
+
+export interface OverfittingAnalysis {
+  suggestionId: string;
+  overfittingScore: number;
+  inSampleWinRate: string;
+  outOfSampleWinRate: string;
+  degradationPct: string;
+  isOverfitting: boolean;
+  warning: string | null;
+}
