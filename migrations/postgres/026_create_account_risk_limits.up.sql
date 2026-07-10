@@ -8,10 +8,8 @@ CREATE TABLE IF NOT EXISTS account_risk_limits (
     drawdown_threshold DECIMAL(10, 4) NOT NULL DEFAULT 10.0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(account_id)
+    UNIQUE(account_id)  -- This creates an implicit index, no separate index needed
 );
-
-CREATE INDEX IF NOT EXISTS idx_account_risk_limits_account ON account_risk_limits(account_id);
 
 -- Seed default risk limits for existing accounts
 INSERT INTO account_risk_limits (account_id)

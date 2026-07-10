@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS system_config (
 );
 
 CREATE INDEX IF NOT EXISTS idx_system_config_category ON system_config(category);
-CREATE INDEX IF NOT EXISTS idx_system_config_key ON system_config(config_key);
+-- Note: idx_system_config_key is redundant because UNIQUE constraint on config_key already creates an implicit index
 
 -- Config audit log for tracking all changes
 CREATE TABLE IF NOT EXISTS config_audit_log (

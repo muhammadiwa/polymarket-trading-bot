@@ -18,7 +18,19 @@ from app.metrics import (
     RISK_ACTIONS_TOTAL,
     RISK_PARAM_CHANGES_TOTAL,
 )
-from app.middleware.auth import verify_jwt
+from app.middleware.auth import extract_user, require_admin
+from app.models.risk_limits import (
+    RiskLimitsResponse,
+    RiskLimitsUpdate,
+    AccountRiskSummary,
+    CrossAccountRiskResponse,
+)
+from app.metrics import (
+    RISK_LIMITS_UPDATES_TOTAL,
+    RISK_PER_ACCOUNT_LIMIT_CHECKS_TOTAL,
+    PORTFOLIO_CROSS_ACCOUNT_QUERIES_TOTAL,
+    PORTFOLIO_CROSS_ACCOUNT_LATENCY,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +165,7 @@ def _safe_decimal_str(val, default="0") -> str:
 
 
 @router.get("/status")
-async def get_risk_status(_user: dict = Depends(verify_jwt)):
+async def get_risk_status(_user: dict = Depends(extract_user)):
     start = time.monotonic()
     r = await _get_redis()
 
@@ -234,7 +246,7 @@ async def get_risk_status(_user: dict = Depends(verify_jwt)):
 
 
 @router.post("/emergency-stop/confirmationToken")
-async def generate_emergency_stop_token(_user: dict = Depends(verify_jwt)):
+async def generate_emergency_stop_token(_user: dict = Depends(extract_user)):
     r = await _get_redis()
     try:
         token = str(uuid.uuid4())
@@ -247,7 +259,7 @@ async def generate_emergency_stop_token(_user: dict = Depends(verify_jwt)):
 @router.post("/emergency-stop")
 async def emergency_stop(
     body: EmergencyStopRequest,
-    user: dict = Depends(verify_jwt),
+    user: dict = Depends(extract_user),
 ):
     start = time.monotonic()
     r = await _get_redis()
@@ -307,7 +319,7 @@ async def emergency_stop(
 
 
 @router.post("/emergency-stop/resume/confirmationToken")
-async def generate_resume_token(_user: dict = Depends(verify_jwt)):
+async def generate_resume_token(_user: dict = Depends(extract_user)):
     r = await _get_redis()
     try:
         token = str(uuid.uuid4())
@@ -320,7 +332,7 @@ async def generate_resume_token(_user: dict = Depends(verify_jwt)):
 @router.post("/pause")
 async def pause_trading(
     body: PauseRequest,
-    _user: dict = Depends(verify_jwt),
+    _user: dict = Depends(extract_user),
 ):
     start = time.monotonic()
     r = await _get_redis()
@@ -367,7 +379,7 @@ async def pause_trading(
 @router.post("/resume")
 async def resume_trading(
     body: ResumeRequest,
-    _user: dict = Depends(verify_jwt),
+    _user: dict = Depends(extract_user),
 ):
     start = time.monotonic()
     r = await _get_redis()
@@ -424,7 +436,7 @@ async def resume_trading(
 @router.put("/parameters")
 async def update_parameters(
     body: RiskParameterUpdate,
-    _user: dict = Depends(verify_jwt),
+    _user: dict = Depends(extract_user),
 ):
     start = time.monotonic()
     r = await _get_redis()
@@ -518,20 +530,6 @@ async def update_parameters(
 # Per-Account Risk Limits Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 
-from app.middleware.auth import require_admin
-from app.models.risk_limits import (
-    RiskLimitsResponse,
-    RiskLimitsUpdate,
-    AccountRiskSummary,
-    CrossAccountRiskResponse,
-)
-from app.metrics import (
-    RISK_LIMITS_UPDATES_TOTAL,
-    RISK_PER_ACCOUNT_LIMIT_CHECKS_TOTAL,
-    PORTFOLIO_CROSS_ACCOUNT_QUERIES_TOTAL,
-    PORTFOLIO_CROSS_ACCOUNT_LATENCY,
-)
-
 # Configurable thresholds
 RISK_WARNING_THRESHOLD = Decimal("0.8")  # 80% of limit
 
@@ -547,7 +545,7 @@ def _validate_account_id(account_id: str) -> uuid.UUID:
 @router.get("/limits/{account_id}", response_model=RiskLimitsResponse)
 async def get_risk_limits(
     account_id: str,
-    _user: dict = Depends(verify_jwt),
+    _user: dict = Depends(extract_user),
 ):
     """Get per-account risk limits."""
     _validate_account_id(account_id)
@@ -587,7 +585,7 @@ async def get_risk_limits(
 async def update_risk_limits(
     account_id: str,
     body: RiskLimitsUpdate,
-    user: dict = Depends(verify_jwt),
+    user: dict = Depends(extract_user),
 ):
     """Update per-account risk limits. Requires admin role."""
     require_admin(user)
@@ -677,7 +675,7 @@ async def update_risk_limits(
 
 @router.get("/cross-account", response_model=CrossAccountRiskResponse)
 async def get_cross_account_risk(
-    _user: dict = Depends(verify_jwt),
+    _user: dict = Depends(extract_user),
 ):
     """Get cross-account risk exposure."""
     start = time.monotonic()
@@ -695,9 +693,9 @@ async def get_cross_account_risk(
             SELECT
                 a.id as account_id,
                 a.name as account_name,
-                COALESCE(arl.daily_loss_limit, %s) as daily_loss_limit,
+                COALESCE(arl.daily_loss_limit, $1) as daily_loss_limit,
                 COALESCE(SUM(p.unrealized_pnl), 0) as daily_loss_used,
-                COALESCE(arl.max_position_per_market, %s) as max_position_per_market,
+                COALESCE(arl.max_position_per_market, $2) as max_position_per_market,
                 COALESCE(SUM(p.quantity * p.current_price), 0) as current_exposure
             FROM accounts a
             LEFT JOIN account_risk_limits arl ON arl.account_id = a.id

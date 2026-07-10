@@ -72,8 +72,6 @@ async def create_user(body: CreateUserRequest, request: dict = Depends(extract_u
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Username already exists",
             )
-        except Exception as e:
-            raise
 
     return UserResponse(id=str(row["id"]), username=row["username"], role=row["role"])
 
@@ -115,7 +113,11 @@ async def list_configs(
     user: dict = Depends(extract_user),
 ):
     """List all system configurations. Sensitive values are masked."""
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
     async with pool.acquire() as conn:
         if category:
             rows = await conn.fetch(
@@ -159,7 +161,11 @@ async def get_config(
     """Get a specific config value. Sensitive values masked unless unmask=true (admin only)."""
     _validate_config_key(key)
 
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM system_config WHERE config_key = $1", key
@@ -203,7 +209,11 @@ async def update_config(
     _validate_config_key(key)
     require_admin(user)
 
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
     async with pool.acquire() as conn:
         # Get current config
         row = await conn.fetchrow(
@@ -301,7 +311,11 @@ async def get_config_audit_logs(
     if key:
         _validate_config_key(key)
 
-    pool = await get_pool()
+    try:
+        pool = await get_pool()
+    except Exception as e:
+        logger.error("failed to get database pool", extra={"error": str(e)})
+        raise HTTPException(status_code=503, detail="Database unavailable")
     async with pool.acquire() as conn:
         if key:
             rows = await conn.fetch(
