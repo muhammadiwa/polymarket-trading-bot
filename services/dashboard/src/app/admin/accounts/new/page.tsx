@@ -100,6 +100,9 @@ export default function NewAccountPage() {
           <p className="mt-1 text-xs text-gray-500">
             Private key will be encrypted and stored securely
           </p>
+          <div className="mt-2 rounded-md bg-yellow-900/50 p-3 text-yellow-200 text-sm">
+            ⚠️ Your private key will be encrypted before storage. Never share your private key with anyone.
+          </div>
         </div>
 
         <div className="flex gap-4">

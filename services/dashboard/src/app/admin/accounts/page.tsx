@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Account } from "@/types";
 import { fetchAccounts, deactivateAccount, activateAccount } from "@/lib/api";
 
@@ -11,6 +11,23 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [confirmDeactivate, setConfirmDeactivate] = useState<Account | null>(null);
+  const successTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-dismiss success message after 5 seconds
+  useEffect(() => {
+    if (success) {
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current);
+      }
+      successTimerRef.current = setTimeout(() => setSuccess(null), 5000);
+    }
+    return () => {
+      if (successTimerRef.current) {
+        clearTimeout(successTimerRef.current);
+      }
+    };
+  }, [success]);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -31,21 +48,35 @@ export default function AccountsPage() {
   }, [loadAccounts]);
 
   const handleToggleActive = async (account: Account) => {
+    if (account.isActive) {
+      // Show confirmation dialog for deactivation
+      setConfirmDeactivate(account);
+      return;
+    }
+
     try {
       setError(null);
       setSuccess(null);
-
-      if (account.isActive) {
-        await deactivateAccount(account.id);
-        setSuccess(`Account "${account.name}" deactivated`);
-      } else {
-        await activateAccount(account.id);
-        setSuccess(`Account "${account.name}" activated`);
-      }
-
+      await activateAccount(account.id);
+      setSuccess(`Account "${account.name}" activated`);
       loadAccounts();
     } catch (err: any) {
-      setError(err.message || "Failed to update account");
+      setError(err.message || "Failed to activate account");
+    }
+  };
+
+  const handleDeactivateConfirm = async () => {
+    if (!confirmDeactivate) return;
+
+    try {
+      setError(null);
+      setSuccess(null);
+      await deactivateAccount(confirmDeactivate.id);
+      setSuccess(`Account "${confirmDeactivate.name}" deactivated`);
+      setConfirmDeactivate(null);
+      loadAccounts();
+    } catch (err: any) {
+      setError(err.message || "Failed to deactivate account");
     }
   };
 
@@ -173,6 +204,35 @@ export default function AccountsPage() {
           </div>
         )}
       </div>
+
+      {/* Deactivate Confirmation Dialog */}
+      {confirmDeactivate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-gray-900 p-6">
+            <h3 className="text-lg font-semibold text-white">Confirm Deactivation</h3>
+            <p className="mt-2 text-gray-400">
+              Are you sure you want to deactivate account <strong className="text-white">{confirmDeactivate.name}</strong>?
+            </p>
+            <p className="mt-2 text-sm text-yellow-400">
+              ⚠️ This will stop all trading activity for this account.
+            </p>
+            <div className="mt-6 flex justify-end gap-4">
+              <button
+                onClick={() => setConfirmDeactivate(null)}
+                className="rounded-md bg-gray-800 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeactivateConfirm}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
+              >
+                Deactivate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
