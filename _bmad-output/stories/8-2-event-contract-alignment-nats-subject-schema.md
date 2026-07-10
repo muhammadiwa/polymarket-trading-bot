@@ -1,6 +1,6 @@
 # Story 8.2: Event Contract Alignment — Fix NATS Subject & Schema Mismatches
 
-Status: in-progress
+Status: review
 
 baseline_commit: current
 
@@ -12,11 +12,11 @@ so that there is no silent data loss and all event flows work correctly end-to-e
 
 ## Acceptance Criteria
 
-- [ ] All NATS subjects have at least one consumer
-- [ ] Event schemas match between publishers and subscribers
-- [ ] Exit order requests are processed by execution-engine
-- [ ] Cancel-all-orders requests are processed by execution-engine
-- [ ] CapitalUpdated events published by portfolio-manager
+- [x] All NATS subjects have at least one consumer
+- [x] Event schemas match between publishers and subscribers
+- [x] Exit order requests are processed by execution-engine
+- [x] Cancel-all-orders requests are processed by execution-engine
+- [x] CapitalUpdated events published by portfolio-manager
 
 ## Tasks / Subtasks
 
@@ -28,9 +28,9 @@ so that there is no silent data loss and all event flows work correctly end-to-e
   - [x] Subtask 2.1: Add CancelAllOrders type to execution-engine ports
   - [x] Subtask 2.2: Add subscription handler in execution-engine
   - [x] Subtask 2.3: Implement cancel-all logic
-- [ ] Task 3: CapitalUpdated Publisher (AC: 5)
-  - [ ] Subtask 3.1: Add CapitalUpdated type to portfolio-manager
-  - [ ] Subtask 3.2: Publish event when capital changes
+- [x] Task 3: CapitalUpdated Publisher (AC: 5)
+  - [x] Subtask 3.1: Add CapitalUpdated type to portfolio-manager
+  - [x] Subtask 3.2: Publish event when capital changes
 - [x] Task 4: PositionUpdated Schema Alignment (AC: 2)
   - [x] Subtask 4.1: Align schema between position-manager and risk-manager
 - [x] Task 5: OrderFilled Schema Alignment (AC: 2)
@@ -239,3 +239,13 @@ type OrderFilledPayload struct {
 ### Completion Notes List
 
 ### File List
+
+**New Files:**
+- `services/portfolio-manager/app/models/events.py` — CapitalUpdated event type
+- `services/portfolio-manager/app/services/nats_publisher.py` — NATS publisher for CapitalUpdated
+
+**Modified Files:**
+- `services/execution-engine/internal/ports/event.go` — Added ExitOrderRequest, CancelAllOrders types
+- `services/execution-engine/adapters/nats_subscriber.go` — Added subscription handlers
+- `services/risk-manager/internal/ports/event.go` — Fixed PositionUpdated, OrderFilled schemas
+- `services/portfolio-manager/app/main.py` — Added NATS lifecycle management
