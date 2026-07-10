@@ -105,7 +105,7 @@ development_status:
   8-2-event-contract-alignment-nats-subject-schema: review
   8-3-frontend-backtesting-ui: review
   8-4-frontend-ai-optimizer-ui: review
-  8-5-frontend-account-management-ui: backlog
+  8-5-frontend-account-management-ui: ready-for-dev
   8-6-integration-fixes-data-flow-error-handling: backlog
   8-7-security-hardening: backlog
   epic-8-retrospective: optional
