@@ -10,7 +10,7 @@ BEGIN
         CREATE TABLE risk_events (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             decision TEXT NOT NULL,
-            reason TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
             market_id TEXT DEFAULT NULL,
             strategy_id TEXT DEFAULT NULL,
             trade_size NUMERIC(18,8) NOT NULL DEFAULT 0,

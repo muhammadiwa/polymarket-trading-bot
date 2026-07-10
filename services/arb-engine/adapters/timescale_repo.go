@@ -48,8 +48,8 @@ func NewTimescaleRepo(url string, logger *zap.Logger) (*TimescaleRepo, error) {
 
 	// Schema is managed by migrations (007_create_opportunities)
 	// NOTE: There is a known conflict between migration 007 (uses 'timestamp' column)
-	// and this service (uses 'time' column). This needs to be resolved in a future migration.
-	// For now, the migration is the source of truth.
+	// and this service (uses 'time' column). This will be resolved in Epic 8 Story 8.2
+	// (Event Contract Alignment). For now, the migration is the source of truth.
 
 	return repo, nil
 }

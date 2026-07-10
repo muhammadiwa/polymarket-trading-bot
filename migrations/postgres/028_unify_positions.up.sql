@@ -73,6 +73,9 @@ BEGIN
     END IF;
 END $$;
 
+-- Normalize status values to lowercase (position-manager used 'OPEN', risk-manager used 'open')
+UPDATE positions SET status = LOWER(status) WHERE status != LOWER(status);
+
 -- Create indexes if they don't exist
 CREATE INDEX IF NOT EXISTS idx_positions_market_id ON positions (market_id);
 CREATE INDEX IF NOT EXISTS idx_positions_status ON positions (status);
