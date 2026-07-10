@@ -107,6 +107,6 @@ development_status:
   8-4-frontend-ai-optimizer-ui: review
   8-5-frontend-account-management-ui: review
   8-6-integration-fixes-data-flow-error-handling: review
-  8-7-security-hardening: backlog
+  8-7-security-hardening: review
   epic-8-retrospective: optional
 

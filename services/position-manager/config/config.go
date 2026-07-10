@@ -43,7 +43,7 @@ func Load() *Config {
 		MetricsPort:                     envOrDefault("POSITION_METRICS_PORT", "9093"),
 		MetricsBindAddress:              envOrDefault("POSITION_METRICS_BIND", "0.0.0.0"),
 		LogLevel:                        envOrDefault("POSITION_LOG_LEVEL", "info"),
-		JWTSecret:                       envOrDefault("POSITION_JWT_SECRET", ""),
+		JWTSecret:                       envOrDefault("JWT_SECRET", ""),
 	}
 }
 
@@ -68,6 +68,9 @@ func (c *Config) Validate() error {
 	}
 	if c.PolymarketAPIURL == "" {
 		return fmt.Errorf("POLYMARKET_API_URL must not be empty")
+	}
+	if c.JWTSecret == "" {
+		return fmt.Errorf("JWT_SECRET must not be empty — required for authentication")
 	}
 	return nil
 }

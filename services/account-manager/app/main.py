@@ -7,6 +7,7 @@ from prometheus_client import make_asgi_app
 
 from app.config import config
 from app.db import close_pool, get_pool, init_pool
+from app.middleware.csrf import CSRFMiddleware
 from app.routes import account
 
 logging.basicConfig(level=getattr(logging, config.LOG_LEVEL.upper(), logging.INFO))
@@ -32,6 +33,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# CSRF protection
+app.add_middleware(CSRFMiddleware)
 
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
