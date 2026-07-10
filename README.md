@@ -1,20 +1,53 @@
-<![CDATA[<div align="center">
+<div align="center">
 
 # Polymarket Quant Arbitrage Platform (PQAP)
 
 **Production-grade automated arbitrage trading platform for Polymarket prediction markets**
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![License](https://img.shields.io/badge/license-MIT-blue)]()
-[![Go Version](https://img.shields.io/badge/Go-1.26.4-00ADD8?logo=go)]()
-[![Python Version](https://img.shields.io/badge/Python-3.13-3776AB?logo=python)]()
-[![Next.js](https://img.shields.io/badge/Next.js-16.2-000000?logo=next.js)]()
-[![Docker](https://img.shields.io/badge/Docker-24+-2496ED?logo=docker)]()
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.36-326CE5?logo=kubernetes)]()
+[![Build Status](https://github.com/muhammadiwa/polymarket-trading-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/muhammadiwa/polymarket-trading-bot/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/badge/Go-1.26.4-00ADD8.svg?logo=go&logoColor=white)](https://golang.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.13-3776AB.svg?logo=python&logoColor=white)](https://python.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.2-000000.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Docker](https://img.shields.io/badge/Docker-24+-2496ED.svg?logo=docker&logoColor=white)](https://docker.com/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.36-326CE5.svg?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 
-[Features](#features) • [Architecture](#architecture) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [Deployment](#deployment) • [Contributing](#contributing)
+[Features](#features) • [Architecture](#architecture) • [Quick Start](#quick-start) • [API Reference](#api-reference) • [Deployment](#deployment) • [Contributing](#contributing) • [Troubleshooting](#troubleshooting)
 
 </div>
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+  - [Epic 1: Foundation — Bot Can Hunt](#epic-1-foundation--bot-can-hunt)
+  - [Epic 2: Risk Shield & Monitoring](#epic-2-risk-shield--monitoring)
+  - [Epic 3: Advanced Hunting Strategies](#epic-3-advanced-hunting-strategies)
+  - [Epic 4: Intelligence & Analytics](#epic-4-intelligence--analytics)
+  - [Epic 5: Backtesting & Paper Trading](#epic-5-backtesting--paper-trading)
+  - [Epic 6: AI Strategy Optimization](#epic-6-ai-strategy-optimization)
+  - [Epic 7: Scaling & Enterprise](#epic-7-scaling--enterprise)
+- [Architecture](#architecture)
+  - [Design Paradigm](#design-paradigm)
+  - [Service Architecture](#service-architecture)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+- [API Reference](#api-reference)
+- [Project Structure](#project-structure)
+- [Deployment](#deployment)
+- [Monitoring](#monitoring)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
+- [Security](#security)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+- [Support](#support)
 
 ---
 
@@ -30,6 +63,16 @@ PQAP is a sophisticated quantitative trading platform designed to detect and exe
 - **Multi-account support** with per-account risk isolation
 - **Real-time dashboard** with portfolio analytics
 - **AI-powered strategy optimization** with pattern analysis
+
+### Screenshots
+
+> 📸 *Screenshots coming soon!*
+
+<!-- 
+![Dashboard Overview](docs/images/dashboard-overview.png)
+![Risk Monitor](docs/images/risk-monitor.png)
+![Analytics](docs/images/analytics.png)
+-->
 
 ---
 
@@ -90,6 +133,8 @@ PQAP is a sophisticated quantitative trading platform designed to detect and exe
 
 ## Architecture
 
+### Design Paradigm
+
 PQAP follows an **event-driven hexagonal architecture** (ports & adapters pattern):
 
 ```
@@ -110,19 +155,25 @@ PQAP follows an **event-driven hexagonal architecture** (ports & adapters patter
 └──────────────────────────────────────────────────────────┘
 ```
 
+**Why hexagonal?**
+1. **Testability** — Every port can be mocked
+2. **Swappability** — Swap adapters without touching core logic
+3. **Loose coupling** — Components communicate via events
+4. **Latency-aware** — Synchronous where speed matters (risk checks)
+
 ### Service Architecture
 
 ```mermaid
 graph TB
-    subgraph "Go Services"
-        Scanner[Scanner<br/>Market Data]
+    subgraph "Go Services (Execution-Critical)"
+        Scanner[Scanner<br/>Market Data Ingestion]
         ArbEngine[Arb Engine<br/>Opportunity Detection]
         Execution[Execution Engine<br/>Order Placement]
         Position[Position Manager<br/>PnL Tracking]
         Risk[Risk Manager<br/>Pit Boss]
     end
     
-    subgraph "Python Services"
+    subgraph "Python Services (AI/Analytics)"
         Portfolio[Portfolio Manager<br/>Capital Management]
         Analytics[Analytics<br/>Performance Metrics]
         Backtest[Backtest Engine<br/>Strategy Testing]
@@ -132,14 +183,16 @@ graph TB
     
     subgraph "Frontend"
         Dashboard[Next.js Dashboard<br/>Real-time UI]
+        Admin[Admin Panel<br/>System Management]
     end
     
     subgraph "Infrastructure"
-        NATS[NATS<br/>Event Bus]
-        Redis[Redis<br/>Cache/State]
-        PostgreSQL[PostgreSQL<br/>OLTP]
-        TimescaleDB[TimescaleDB<br/>Time-Series]
-        Prometheus[Prometheus<br/>Metrics]
+        NATS[NATS JetStream<br/>Event Bus]
+        Redis[Redis 8.8<br/>Cache/State]
+        PostgreSQL[PostgreSQL 17<br/>OLTP Database]
+        TimescaleDB[TimescaleDB 2.x<br/>Time-Series]
+        Prometheus[Prometheus 3.12<br/>Metrics]
+        Grafana[Grafana 13<br/>Dashboards]
     end
     
     Scanner -->|MarketPriceUpdated| NATS
@@ -151,10 +204,13 @@ graph TB
     NATS --> Execution
     NATS --> Dashboard
     
-    Execution -->|Sync Check| Risk
+    Execution -->|Sync Check < 10ms| Risk
     Execution --> PostgreSQL
     Scanner --> Redis
     Risk --> Redis
+    
+    Dashboard -->|WebSocket| Admin
+    Admin --> PostgreSQL
 ```
 
 ---
@@ -170,11 +226,13 @@ graph TB
 | **Cache/Coordination** | Redis | 8.8.0 | Pit Boss state, market cache |
 | **OLTP Database** | PostgreSQL | 17.10 | Trades, positions, strategies |
 | **Time-Series** | TimescaleDB | 2.x | Market prices, opportunities |
-| **Event Bus** | NATS | 2.10+ | Async event streaming |
+| **Event Bus** | NATS | 2.10+ (JetStream) | Async event streaming |
 | **Container** | Docker | 24+ | Containerization |
 | **Orchestration** | Kubernetes | 1.36.2 | Container orchestration |
 | **Metrics** | Prometheus | 3.12.0 | Metrics collection |
 | **Dashboards** | Grafana | 13.0.3 | Operational monitoring |
+| **Blockchain** | Polygon | Chain ID 137 | Polymarket settlement |
+| **Stablecoin** | USDC (Polygon) | — | Trading collateral |
 
 ---
 
@@ -182,112 +240,84 @@ graph TB
 
 ### Prerequisites
 
-- Docker 24+ and Docker Compose
+- Docker 24+ and Docker Compose v2
 - Go 1.26.4 (for local development)
 - Python 3.13+ (for local development)
 - Node.js 18+ (for dashboard development)
 - PostgreSQL 17+ (or use Docker)
 - Redis 8+ (or use Docker)
 
-### 1. Clone the Repository
+### Installation
 
 ```bash
-git clone https://github.com/your-org/polymarket-trading-bot.git
+# 1. Clone the repository
+git clone https://github.com/muhammadiwa/polymarket-trading-bot.git
 cd polymarket-trading-bot
-```
 
-### 2. Environment Configuration
-
-```bash
-# Copy example environment file
+# 2. Copy environment template
 cp .env.example .env
 
-# Edit with your configuration
+# 3. Edit configuration (see Configuration section)
 nano .env
-```
 
-Required environment variables:
-
-```env
-# Polymarket API
-POLYMARKET_API_KEY=your_api_key
-POLYMARKET_SECRET=your_api_secret
-
-# Database
-POSTGRES_URL=postgres://user:pass@localhost:5432/pqap
-REDIS_URL=redis://localhost:6379
-
-# NATS
-NATS_URL=nats://localhost:4222
-
-# Security
-JWT_SECRET=your_jwt_secret
-ENCRYPTION_MASTER_KEY=your_encryption_key
-
-# Notifications
-TELEGRAM_BOT_TOKEN=your_telegram_token
-TELEGRAM_CHAT_ID=your_chat_id
-```
-
-### 3. Start with Docker Compose
-
-```bash
-# Start all services
+# 4. Start all services
 docker-compose up -d
 
-# Check service status
-docker-compose ps
-
-# View logs
-docker-compose logs -f scanner
-```
-
-### 4. Run Database Migrations
-
-```bash
-# Run PostgreSQL migrations
+# 5. Run database migrations
 docker-compose exec api-gateway python -m alembic upgrade head
 
-# Or using golang-migrate
-migrate -path migrations/postgres -database $POSTGRES_URL up
+# 6. Access the dashboard
+open http://localhost:3000
 ```
 
-### 5. Access the Dashboard
+### Configuration
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Create a `.env` file with the following variables:
 
-Default credentials:
-- Username: `admin`
-- Password: Set via `ADMIN_PASSWORD` environment variable
+```env
+# ═══════════════════════════════════════════════════════════
+# POLYMARKET API
+# ═══════════════════════════════════════════════════════════
+POLYMARKET_API_KEY=your_api_key_here
+POLYMARKET_SECRET=your_api_secret_here
 
----
+# ═══════════════════════════════════════════════════════════
+# DATABASE
+# ═══════════════════════════════════════════════════════════
+POSTGRES_URL=postgres://pqap:password@localhost:5432/pqap
+REDIS_URL=redis://localhost:6379
 
-## Configuration
+# ═══════════════════════════════════════════════════════════
+# EVENT BUS
+# ═══════════════════════════════════════════════════════════
+NATS_URL=nats://localhost:4222
 
-### Environment Variables
+# ═══════════════════════════════════════════════════════════
+# SECURITY (REQUIRED - Generate with: openssl rand -hex 32)
+# ═══════════════════════════════════════════════════════════
+JWT_SECRET=your_jwt_secret_here
+ENCRYPTION_MASTER_KEY=your_encryption_key_here
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `POSTGRES_URL` | PostgreSQL connection string | `postgres://localhost:5432/pqap` |
-| `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
-| `NATS_URL` | NATS connection string | `nats://localhost:4222` |
-| `JWT_SECRET` | JWT signing secret | (required) |
-| `ENCRYPTION_MASTER_KEY` | Master key for wallet encryption | (required) |
-| `POLYMARKET_API_KEY` | Polymarket API key | (required) |
-| `POLYMARKET_SECRET` | Polymarket API secret | (required) |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token | (optional) |
-| `TELEGRAM_CHAT_ID` | Telegram chat ID | (optional) |
-| `LOG_LEVEL` | Logging level | `info` |
-| `ENVIRONMENT` | Environment (development/production) | `development` |
+# ═══════════════════════════════════════════════════════════
+# NOTIFICATIONS (OPTIONAL)
+# ═══════════════════════════════════════════════════════════
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
 
-### Risk Configuration
+# ═══════════════════════════════════════════════════════════
+# RISK LIMITS (OPTIONAL - Override defaults)
+# ═══════════════════════════════════════════════════════════
+DEFAULT_DAILY_LOSS_LIMIT_PCT=2.0
+DEFAULT_MAX_POSITION_PER_MARKET_PCT=10.0
+DEFAULT_MAX_POSITION_PER_STRATEGY_PCT=20.0
+DEFAULT_DRAWDOWN_THRESHOLD_PCT=10.0
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DEFAULT_DAILY_LOSS_LIMIT_PCT` | Daily loss limit (%) | `2.0` |
-| `DEFAULT_MAX_POSITION_PER_MARKET_PCT` | Max position per market (%) | `10.0` |
-| `DEFAULT_MAX_POSITION_PER_STRATEGY_PCT` | Max position per strategy (%) | `20.0` |
-| `DEFAULT_DRAWDOWN_THRESHOLD_PCT` | Drawdown circuit breaker (%) | `10.0` |
+# ═══════════════════════════════════════════════════════════
+# APPLICATION
+# ═══════════════════════════════════════════════════════════
+LOG_LEVEL=info
+ENVIRONMENT=development
+```
 
 ---
 
@@ -295,47 +325,51 @@ Default credentials:
 
 ### Authentication
 
-All API endpoints require JWT authentication via `Authorization: Bearer <token>` header.
+All API endpoints require JWT authentication:
 
-### Portfolio Endpoints
+```bash
+# Login to get token
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "your_password"}'
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/portfolio/overview` | Get portfolio overview |
-| `GET` | `/api/portfolio/overview?account_id={id}` | Per-account portfolio |
-| `GET` | `/api/positions` | List all positions |
+# Use token in requests
+curl http://localhost:8080/api/portfolio/overview \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
 
-### Risk Endpoints
+### Core Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/risk/status` | Get risk status |
-| `POST` | `/api/risk/emergency-stop` | Trigger emergency stop |
-| `POST` | `/api/risk/pause` | Pause trading |
-| `POST` | `/api/risk/resume` | Resume trading |
-| `GET` | `/api/risk/limits/{account_id}` | Get per-account risk limits |
-| `PUT` | `/api/risk/limits/{account_id}` | Update risk limits |
+| Category | Method | Endpoint | Description |
+|----------|--------|----------|-------------|
+| **Portfolio** | `GET` | `/api/portfolio/overview` | Portfolio overview |
+| **Portfolio** | `GET` | `/api/portfolio/overview?account_id={id}` | Per-account portfolio |
+| **Positions** | `GET` | `/api/positions` | List all positions |
+| **Risk** | `GET` | `/api/risk/status` | Risk status |
+| **Risk** | `POST` | `/api/risk/emergency-stop` | Emergency stop |
+| **Risk** | `POST` | `/api/risk/pause` | Pause trading |
+| **Risk** | `POST` | `/api/risk/resume` | Resume trading |
+| **Accounts** | `GET` | `/api/accounts` | List accounts |
+| **Accounts** | `POST` | `/api/accounts` | Create account |
 
 ### Admin Endpoints
 
+| Category | Method | Endpoint | Description |
+|----------|--------|----------|-------------|
+| **Config** | `GET` | `/api/admin/config` | List configurations |
+| **Config** | `PUT` | `/api/admin/config/{key}` | Update config |
+| **Health** | `GET` | `/api/admin/health` | System health |
+| **Logs** | `GET` | `/api/admin/logs` | Query logs |
+| **Database** | `POST` | `/api/admin/database/backup` | Create backup |
+| **Database** | `GET` | `/api/admin/database/stats` | DB statistics |
+
+### Risk Limits
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/admin/config` | List system configurations |
-| `PUT` | `/api/admin/config/{key}` | Update configuration |
-| `GET` | `/api/admin/health` | System health with alerts |
-| `GET` | `/api/admin/logs` | Query system logs |
-| `POST` | `/api/admin/database/backup` | Create database backup |
-| `GET` | `/api/admin/database/stats` | Database statistics |
-
-### Account Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/accounts` | List all accounts |
-| `POST` | `/api/accounts` | Create new account |
-| `GET` | `/api/accounts/{id}` | Get account details |
-| `PUT` | `/api/accounts/{id}` | Update account |
-| `DELETE` | `/api/accounts/{id}` | Deactivate account |
+| `GET` | `/api/risk/limits/{account_id}` | Get per-account limits |
+| `PUT` | `/api/risk/limits/{account_id}` | Update limits (admin) |
+| `GET` | `/api/risk/cross-account` | Cross-account exposure |
 
 ---
 
@@ -345,29 +379,56 @@ All API endpoints require JWT authentication via `Authorization: Bearer <token>`
 polymarket-trading-bot/
 ├── services/
 │   ├── scanner/                    # Go — Market data ingestion
+│   │   ├── cmd/main.go
+│   │   ├── internal/
+│   │   │   ├── websocket/          # Polymarket WS client
+│   │   │   ├── rest/               # REST API client
+│   │   │   └── catalog/            # Market catalog
+│   │   └── adapters/
+│   │
 │   ├── arb-engine/                 # Go — Opportunity detection
+│   │   ├── internal/
+│   │   │   ├── detector/           # YES+NO, cross-market arb
+│   │   │   ├── scorer/             # Opportunity scoring
+│   │   │   └── filter/             # Threshold filtering
+│   │   └── adapters/
+│   │
 │   ├── execution-engine/           # Go — Order execution
+│   │   ├── internal/
+│   │   │   ├── executor/           # Order placement
+│   │   │   ├── monitor/            # Fill monitoring
+│   │   │   └── circuit_breaker/    # API circuit breaker
+│   │   └── adapters/
+│   │
+│   ├── risk-manager/               # Go — Pit Boss
+│   │   ├── internal/
+│   │   │   ├── pitboss/            # Risk evaluation
+│   │   │   └── emergency/          # Emergency stop
+│   │   └── adapters/
+│   │
 │   ├── position-manager/           # Go — Position tracking
-│   ├── risk-manager/               # Go — Risk management
 │   ├── portfolio-manager/          # Python — Capital management
-│   ├── analytics/                  # Python — Performance analytics
-│   ├── backtest/                   # Python — Backtesting engine
-│   ├── ai-optimizer/               # Python — AI strategy optimization
-│   ├── notification/               # Python — Alert delivery
+│   ├── analytics/                  # Python — Performance metrics
+│   ├── backtest/                   # Python — Backtesting
+│   ├── ai-optimizer/               # Python — AI optimization
+│   ├── notification/               # Python — Telegram alerts
 │   ├── api-gateway/                # Python (FastAPI) — API layer
-│   ├── account-manager/            # Python — Multi-account management
+│   ├── account-manager/            # Python — Multi-account
 │   └── dashboard/                  # Next.js — Frontend
+│       ├── src/app/                # App router pages
+│       ├── src/components/         # React components
+│       └── src/lib/                # Utilities & API client
 │
 ├── migrations/
 │   ├── postgres/                   # PostgreSQL migrations
 │   └── timescale/                  # TimescaleDB migrations
 │
 ├── monitoring/
-│   ├── prometheus/                 # Prometheus configuration
-│   └── grafana/                    # Grafana dashboards
+│   ├── prometheus/prometheus.yaml
+│   └── grafana/dashboards/         # Pre-built dashboards
 │
 ├── deploy/
-│   ├── docker/                     # Dockerfiles
+│   ├── docker/                     # Dockerfiles per service
 │   └── k8s/                        # Kubernetes manifests
 │
 ├── tests/
@@ -376,7 +437,8 @@ polymarket-trading-bot/
 │   └── e2e/                        # End-to-end tests
 │
 ├── docker-compose.yaml             # Local development
-├── Makefile                        # Build, test, lint commands
+├── Makefile                        # Build commands
+├── CHANGELOG.md                    # Version history
 └── README.md                       # This file
 ```
 
@@ -390,11 +452,14 @@ polymarket-trading-bot/
 # Start all services
 docker-compose up -d
 
+# View logs
+docker-compose logs -f scanner
+
 # Stop all services
 docker-compose down
 
-# Rebuild and restart
-docker-compose up -d --build
+# Rebuild specific service
+docker-compose up -d --build scanner
 ```
 
 ### Kubernetes (Production)
@@ -403,33 +468,29 @@ docker-compose up -d --build
 # Create namespace
 kubectl create namespace pqap
 
-# Apply configurations
+# Apply all manifests
 kubectl apply -f deploy/k8s/
 
-# Check deployment status
+# Check status
 kubectl get pods -n pqap
 
 # View logs
 kubectl logs -f deployment/scanner -n pqap
+
+# Scale service
+kubectl scale deployment/scanner --replicas=2 -n pqap
 ```
 
 ### Makefile Commands
 
 ```bash
-# Build all services
-make build
-
-# Run tests
-make test
-
-# Run linter
-make lint
-
-# Generate protobuf
-make proto
-
-# Clean build artifacts
-make clean
+make build          # Build all services
+make test           # Run all tests
+make lint           # Run linters
+make proto          # Generate protobuf
+make clean          # Clean build artifacts
+make docker-build   # Build Docker images
+make k8s-deploy     # Deploy to Kubernetes
 ```
 
 ---
@@ -438,100 +499,170 @@ make clean
 
 ### Prometheus Metrics
 
-All services export metrics on `/metrics` endpoint:
+All services export metrics on `/metrics`:
 
-- `pqap_scanner_*` — Scanner metrics
-- `pqap_execution_*` — Execution metrics
-- `pqap_risk_*` — Risk management metrics
-- `pqap_portfolio_*` — Portfolio metrics
+| Metric Prefix | Service | Description |
+|---------------|---------|-------------|
+| `pqap_scanner_*` | Scanner | Market data metrics |
+| `pqap_execution_*` | Execution | Order metrics |
+| `pqap_risk_*` | Risk Manager | Risk metrics |
+| `pqap_portfolio_*` | Portfolio | Capital metrics |
+| `pqap_admin_*` | Admin | Admin panel metrics |
 
 ### Grafana Dashboards
 
-Pre-built dashboards available in `monitoring/grafana/dashboards/`:
+Pre-built dashboards in `monitoring/grafana/dashboards/`:
 
 - **Trading Overview** — Portfolio PnL, positions, opportunities
 - **Risk Monitor** — Risk limits, circuit breakers, alerts
 - **System Health** — CPU, memory, connections, error rates
-- **Strategy Performance** — Per-strategy metrics and comparison
+- **Strategy Performance** — Per-strategy metrics
 
 ### Alerts
 
-Alertmanager configured for:
-
-- Critical: Emergency stop, circuit breaker tripped
-- Warning: High error rate, memory usage, connection issues
-- Info: Daily summary, performance milestones
+| Severity | Examples |
+|----------|----------|
+| **Critical** | Emergency stop, circuit breaker tripped, API death spiral |
+| **Warning** | High error rate, memory usage, connection issues |
+| **Info** | Daily summary, performance milestones |
 
 ---
 
 ## Testing
 
-### Unit Tests
-
 ```bash
-# Go services
-go test ./...
+# Unit tests
+make test-unit
 
-# Python services
-pytest services/api-gateway/tests/
-pytest services/portfolio-manager/tests/
-
-# Frontend
-cd services/dashboard && npm test
-```
-
-### Integration Tests
-
-```bash
-# Run integration tests
+# Integration tests
 make test-integration
-```
 
-### End-to-End Tests
-
-```bash
-# Run E2E tests
+# End-to-end tests
 make test-e2e
+
+# Coverage report
+make test-coverage
+
+# Specific service
+cd services/api-gateway && pytest tests/
+cd services/dashboard && npm test
 ```
 
 ---
 
 ## Contributing
 
-We welcome contributions! Please follow these guidelines:
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md).
 
-### Development Workflow
+### Quick Start
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. **Fork** the repository
+2. **Clone** your fork
+3. **Create** a feature branch
+4. **Commit** with conventional commits
+5. **Push** and open a Pull Request
 
 ### Commit Convention
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
+We use [Conventional Commits](https://www.conventionalcommits.org/):
 
-- `feat:` — New feature
-- `fix:` — Bug fix
-- `docs:` — Documentation
-- `style:` — Formatting
-- `refactor:` — Code refactoring
-- `test:` — Adding tests
-- `chore:` — Maintenance
+```
+feat: add new feature
+fix: resolve bug
+docs: update documentation
+style: formatting changes
+refactor: code refactoring
+test: add tests
+chore: maintenance
+```
 
 ### Code Style
 
-- **Go**: Follow [Effective Go](https://go.dev/doc/effective_go) and `golangci-lint`
-- **Python**: Follow PEP 8, use `black` and `ruff`
-- **TypeScript**: Follow ESLint configuration
+| Language | Tool | Config |
+|----------|------|--------|
+| Go | `golangci-lint` | `.golangci.yml` |
+| Python | `ruff` + `black` | `pyproject.toml` |
+| TypeScript | `eslint` | `.eslintrc.js` |
 
-### Pull Request Process
+### Pull Request Checklist
 
-1. Update documentation for any new features
-2. Add tests for new functionality
-3. Ensure all tests pass
-4. Request review from maintainers
+- [ ] Tests pass (`make test`)
+- [ ] Linter passes (`make lint`)
+- [ ] Documentation updated
+- [ ] No breaking changes (or documented)
+- [ ] Conventional commit messages
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### Services won't start
+
+```bash
+# Check logs
+docker-compose logs
+
+# Verify environment variables
+docker-compose config
+
+# Restart specific service
+docker-compose restart scanner
+```
+
+#### Database connection errors
+
+```bash
+# Check PostgreSQL is running
+docker-compose ps postgres
+
+# Verify connection string
+echo $POSTGRES_URL
+
+# Run migrations
+docker-compose exec api-gateway python -m alembic upgrade head
+```
+
+#### WebSocket disconnections
+
+```bash
+# Check scanner logs
+docker-compose logs -f scanner
+
+# Verify Polymarket API key
+echo $POLYMARKET_API_KEY
+
+# Check network connectivity
+docker-compose exec scanner ping api.polymarket.com
+```
+
+#### High memory usage
+
+```bash
+# Check resource usage
+docker stats
+
+# Limit container memory
+docker-compose up -d --scale scanner=1
+```
+
+### Debug Mode
+
+```bash
+# Enable debug logging
+export LOG_LEVEL=debug
+docker-compose up -d
+
+# View detailed logs
+docker-compose logs -f --tail=100
+```
+
+### Getting Help
+
+1. Check [Issues](https://github.com/muhammadiwa/polymarket-trading-bot/issues)
+2. Search [Discussions](https://github.com/muhammadiwa/polymarket-trading-bot/discussions)
+3. Read [Documentation](docs/)
 
 ---
 
@@ -539,21 +670,48 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ### Reporting Vulnerabilities
 
-Please report security vulnerabilities to `security@your-org.com`. Do NOT open public issues for security concerns.
+Please report security vulnerabilities to **security@your-org.com**. Do NOT open public issues.
 
 ### Security Measures
 
-- JWT authentication with configurable expiry
-- CSRF protection on state-changing endpoints
-- Encrypted private key storage (AES-256-GCM)
-- Rate limiting on sensitive endpoints
-- Kubernetes secrets for sensitive configuration
+- ✅ JWT authentication with configurable expiry
+- ✅ CSRF protection on state-changing endpoints
+- ✅ Encrypted private key storage (AES-256-GCM)
+- ✅ Rate limiting on sensitive endpoints
+- ✅ Kubernetes secrets for sensitive config
+- ✅ Input validation on all endpoints
+- ✅ SQL injection prevention (parameterized queries)
+- ✅ XSS protection (Content-Security-Policy)
 
 ---
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+
+```
+MIT License
+
+Copyright (c) 2026 PQAP Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ---
 
@@ -564,14 +722,19 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 - [TimescaleDB](https://www.timescale.com/) — Time-series database
 - [FastAPI](https://fastapi.tiangolo.com/) — Modern Python web framework
 - [Next.js](https://nextjs.org/) — React framework
+- [Polygon](https://polygon.technology/) — Blockchain infrastructure
 
 ---
 
 ## Support
 
-- **Documentation**: [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/your-org/polymarket-trading-bot/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/polymarket-trading-bot/discussions)
+| Channel | Link |
+|---------|------|
+| 📖 Documentation | [docs/](docs/) |
+| 🐛 Issues | [GitHub Issues](https://github.com/muhammadiwa/polymarket-trading-bot/issues) |
+| 💬 Discussions | [GitHub Discussions](https://github.com/muhammadiwa/polymarket-trading-bot/discussions) |
+| 📋 Changelog | [CHANGELOG.md](CHANGELOG.md) |
+| 🔒 Security | security@your-org.com |
 
 ---
 
@@ -579,5 +742,6 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 **Built with ❤️ by the PQAP Team**
 
+[⬆ Back to Top](#polymarket-quant-arbitrage-platform-pqap)
+
 </div>
-]]>
