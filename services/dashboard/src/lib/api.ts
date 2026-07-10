@@ -33,6 +33,10 @@ import type {
   ABTest,
   ABTestResultSummary,
   OverfittingAnalysis,
+  Account,
+  AccountCreateRequest,
+  AccountUpdateRequest,
+  AccountListResponse,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -455,4 +459,30 @@ export async function fetchABTestSummary(abTestId: string): Promise<ABTestResult
 
 export async function fetchOverfittingAnalysis(suggestionId: string): Promise<OverfittingAnalysis> {
   return request<OverfittingAnalysis>(`/api/optimizer/suggestions/${suggestionId}/overfitting-analysis`);
+}
+
+// Account Management API (Epic 7)
+export async function fetchAccounts(isActive?: boolean): Promise<AccountListResponse> {
+  const params = isActive !== undefined ? `?is_active=${isActive}` : "";
+  return request<AccountListResponse>(`/api/accounts${params}`);
+}
+
+export async function fetchAccount(accountId: string): Promise<Account> {
+  return request<Account>(`/api/accounts/${accountId}`);
+}
+
+export async function createAccount(request: AccountCreateRequest): Promise<Account> {
+  return postRequest<Account>("/api/accounts", request);
+}
+
+export async function updateAccount(accountId: string, request: AccountUpdateRequest): Promise<Account> {
+  return putRequest<Account>(`/api/accounts/${accountId}`, request);
+}
+
+export async function deactivateAccount(accountId: string): Promise<Account> {
+  return postRequest<Account>(`/api/accounts/${accountId}/deactivate`);
+}
+
+export async function activateAccount(accountId: string): Promise<Account> {
+  return postRequest<Account>(`/api/accounts/${accountId}/activate`);
 }

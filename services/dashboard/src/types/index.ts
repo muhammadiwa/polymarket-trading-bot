@@ -465,3 +465,28 @@ export interface OverfittingAnalysis {
   isOverfitting: boolean;
   warning: string | null;
 }
+
+// Account Management Types (Epic 7)
+export interface Account {
+  id: string;
+  name: string;
+  walletAddress: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccountCreateRequest {
+  name: string;
+  walletAddress: string;
+  privateKey: string;
+}
+
+export interface AccountUpdateRequest {
+  name?: string;
+}
+
+export interface AccountListResponse {
+  accounts: Account[];
+  total: number;
+}

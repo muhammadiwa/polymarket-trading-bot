@@ -1,6 +1,8 @@
 # Story 8.5: Frontend — Account Management UI (Epic 7)
 
-Status: ready-for-dev
+Status: in-progress
+
+baseline_commit: current
 
 ## Story
 
@@ -10,24 +12,24 @@ so that I can switch between accounts and manage their settings.
 
 ## Acceptance Criteria
 
-- [ ] Account list page
-- [ ] Account creation form
-- [ ] Account edit page
-- [ ] Activate/deactivate actions
-- [ ] API functions added to api.ts
+- [x] Account list page
+- [x] Account creation form
+- [x] Account edit page
+- [x] Activate/deactivate actions
+- [x] API functions added to api.ts
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add API functions to api.ts
-  - [ ] Subtask 1.1: Add account CRUD API functions
-- [ ] Task 2: Add TypeScript types
-  - [ ] Subtask 2.1: Add account types to types/index.ts
-- [ ] Task 3: Create Account List Page
-  - [ ] Subtask 3.1: Create account list with activate/deactivate
-  - [ ] Subtask 3.2: Add navigation to admin layout
-- [ ] Task 4: Create Account Form Page
-  - [ ] Subtask 4.1: Create account creation form
-  - [ ] Subtask 4.2: Create account edit form
+- [x] Task 1: Add API functions to api.ts
+  - [x] Subtask 1.1: Add account CRUD API functions
+- [x] Task 2: Add TypeScript types
+  - [x] Subtask 2.1: Add account types to types/index.ts
+- [x] Task 3: Create Account List Page
+  - [x] Subtask 3.1: Create account list with activate/deactivate
+  - [x] Subtask 3.2: Add navigation to admin layout
+- [x] Task 4: Create Account Form Page
+  - [x] Subtask 4.1: Create account creation form
+  - [x] Subtask 4.2: Create account edit form
 
 ## API Endpoints
 
@@ -86,3 +88,14 @@ interface AccountListResponse {
 ### Completion Notes List
 
 ### File List
+
+**New Files:**
+- `services/dashboard/src/app/admin/accounts/page.tsx` — Account list page
+- `services/dashboard/src/app/admin/accounts/new/page.tsx` — Account creation form
+- `services/dashboard/src/app/admin/accounts/[id]/page.tsx` — Account edit page
+
+**Modified Files:**
+- `services/dashboard/src/types/index.ts` — Added account types
+- `services/dashboard/src/lib/api.ts` — Added account API functions
+- `services/dashboard/src/app/admin/layout.tsx` — Added Accounts nav link
+- `services/dashboard/src/app/admin/page.tsx` — Added Accounts card link

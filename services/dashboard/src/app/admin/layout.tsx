@@ -13,6 +13,7 @@ const navItems = [
   { href: "/admin/database", label: "Database" },
   { href: "/admin/backtest", label: "Backtest" },
   { href: "/admin/suggestions", label: "AI Optimizer" },
+  { href: "/admin/accounts", label: "Accounts" },
 ];
 
 export default function AdminLayout({
