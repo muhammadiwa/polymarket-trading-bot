@@ -4,7 +4,7 @@ import os
 class Config:
     POSTGRES_URL: str = os.getenv("POSTGRES_URL", "postgres://localhost:5432/pqap")
     TIMESCALE_URL: str = os.getenv("TIMESCALE_URL", "postgres://localhost:5432/pqap")
-    JWT_SECRET: str = os.getenv("RISK_JWT_SECRET", "")
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "")
     JWT_ALGORITHM: str = "HS256"
     LOG_LEVEL: str = os.getenv("BACKTESTING_LOG_LEVEL", "info")
 
@@ -19,4 +19,4 @@ class Config:
 config = Config()
 
 if not config.JWT_SECRET:
-    raise RuntimeError("RISK_JWT_SECRET must be set")
+    raise RuntimeError("JWT_SECRET must be set")

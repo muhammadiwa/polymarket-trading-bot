@@ -61,7 +61,7 @@ func Load() *Config {
 		APIPort:                     envOrDefault("RISK_API_PORT", "8080"),
 		APIBindAddress:              envOrDefault("RISK_API_BIND", "0.0.0.0"),
 		LogLevel:                    envOrDefault("RISK_LOG_LEVEL", "info"),
-		JWTSecret:                   envOrDefault("RISK_JWT_SECRET", ""),
+		JWTSecret:                   envOrDefault("JWT_SECRET", ""),
 		DrawdownLimitPct:            envFloatOrDefault("RISK_DRAWDOWN_LIMIT_PCT", 0.10),
 		DrawdownWarningThreshold:    envFloatOrDefault("RISK_DRAWDOWN_WARNING_THRESHOLD", 0.80),
 		APITimeoutMinutes:           envIntOrDefault("RISK_API_TIMEOUT_MINUTES", 5),
@@ -134,7 +134,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("order cancel timeout must be > 0, got %v", c.OrderCancelTimeout)
 	}
 	if c.JWTSecret == "" {
-		return fmt.Errorf("RISK_JWT_SECRET must not be empty")
+		return fmt.Errorf("JWT_SECRET must not be empty")
 	}
 	if c.MaxCorrelatedPositions <= 0 {
 		return fmt.Errorf("max correlated positions must be > 0, got %d", c.MaxCorrelatedPositions)

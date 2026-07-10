@@ -121,7 +121,7 @@ func (p *NATSPublisher) PublishCircuitBreakerResumed(ctx context.Context, event 
 }
 
 func (p *NATSPublisher) PublishNotificationRequest(ctx context.Context, event ports.NotificationRequest) error {
-	return p.publish(ctx, "pqap.notification.send", event)
+	return p.publish(ctx, "pqap.notification.request", event)
 }
 
 func (p *NATSPublisher) PublishTradeRecorded(ctx context.Context, event ports.TradeRecorded) error {

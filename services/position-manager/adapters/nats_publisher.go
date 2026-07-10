@@ -106,7 +106,7 @@ func (p *NATSPublisher) PublishRiskAlert(ctx context.Context, event ports.RiskAl
 }
 
 func (p *NATSPublisher) PublishNotificationRequest(ctx context.Context, event ports.NotificationRequest) error {
-	return p.publish(ctx, "pqap.notification.send", event)
+	return p.publish(ctx, "pqap.notification.request", event)
 }
 
 func (p *NATSPublisher) PublishExitOrderRequest(ctx context.Context, event ports.ExitOrderRequest) error {

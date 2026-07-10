@@ -3,7 +3,7 @@ import os
 
 class Config:
     POSTGRES_URL: str = os.getenv("POSTGRES_URL", "")
-    JWT_SECRET: str = os.getenv("RISK_JWT_SECRET", "")
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "")
     JWT_ALGORITHM: str = "HS256"
     LOG_LEVEL: str = os.getenv("AI_ASSISTANT_LOG_LEVEL", "info")
 
@@ -22,7 +22,7 @@ if not config.POSTGRES_URL:
     raise RuntimeError("POSTGRES_URL must be set")
 
 if not config.JWT_SECRET:
-    raise RuntimeError("RISK_JWT_SECRET must be set")
+    raise RuntimeError("JWT_SECRET must be set")
 
 if not config.LLM_API_KEY:
     raise RuntimeError("LLM_API_KEY must be set")

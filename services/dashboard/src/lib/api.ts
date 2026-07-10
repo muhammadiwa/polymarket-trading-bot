@@ -38,6 +38,22 @@ function getCsrfToken(): string | null {
   return match ? match[1] : null;
 }
 
+// Convert camelCase to snake_case for API requests
+function toSnakeCase(str: string): string {
+  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+}
+
+function convertKeysToSnakeCase(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(convertKeysToSnakeCase);
+  if (typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [toSnakeCase(key), convertKeysToSnakeCase(value)])
+    );
+  }
+  return obj;
+}
+
 async function request<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -77,8 +93,12 @@ async function postRequest<T>(path: string, body?: unknown, timeoutMs = DEFAULT_
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const token = getToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
   }
@@ -87,7 +107,7 @@ async function postRequest<T>(path: string, body?: unknown, timeoutMs = DEFAULT_
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? JSON.stringify(convertKeysToSnakeCase(body)) : undefined,
       signal: controller.signal,
       credentials: "include",
     });
@@ -109,8 +129,12 @@ async function putRequest<T>(path: string, body: unknown, timeoutMs = DEFAULT_TI
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const token = getToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
   }
@@ -119,7 +143,7 @@ async function putRequest<T>(path: string, body: unknown, timeoutMs = DEFAULT_TI
     const res = await fetch(`${API_BASE}${path}`, {
       method: "PUT",
       headers,
-      body: JSON.stringify(body),
+      body: JSON.stringify(convertKeysToSnakeCase(body)),
       signal: controller.signal,
       credentials: "include",
     });
