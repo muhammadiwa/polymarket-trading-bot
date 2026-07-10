@@ -5,9 +5,11 @@ import uuid
 from decimal import Decimal
 from typing import Optional
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from app.config import config
 from app.db import get_pg_pool, get_ts_pool
 from app.engine.replay_engine import replay_events
 from app.middleware.auth import verify_jwt
@@ -18,18 +20,42 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/replay", tags=["replay"])
 
-# In-memory replay sessions with cleanup
-_sessions: dict[str, dict] = {}
-MAX_SESSIONS = 100
+# Redis-backed session storage (works across multiple workers)
+_redis: Optional[aioredis.Redis] = None
+SESSION_TTL = 3600  # 1 hour
+
+
+async def _get_redis() -> aioredis.Redis:
+    global _redis
+    if _redis is None:
+        _redis = aioredis.from_url(config.REDIS_URL, decode_responses=True)
+    return _redis
+
+
+async def _get_session(session_id: str) -> Optional[dict]:
+    """Get session from Redis."""
+    r = await _get_redis()
+    data = await r.get(f"replay:{session_id}")
+    if data:
+        return json.loads(data)
+    return None
+
+
+async def _save_session(session_id: str, session: dict) -> None:
+    """Save session to Redis with TTL."""
+    r = await _get_redis()
+    await r.set(f"replay:{session_id}", json.dumps(session), ex=SESSION_TTL)
+
+
+async def _delete_session(session_id: str) -> None:
+    """Delete session from Redis."""
+    r = await _get_redis()
+    await r.delete(f"replay:{session_id}")
 
 
 @router.post("")
 async def start_replay(body: ReplayRequest, _user: dict = Depends(verify_jwt)):
     """Start a new replay session."""
-    # #5: Limit sessions
-    if len(_sessions) >= MAX_SESSIONS:
-        raise HTTPException(status_code=429, detail="Too many active replay sessions")
-
     session_id = str(uuid.uuid4())
     ts_pool = await get_ts_pool()
     async with ts_pool.acquire() as conn:
@@ -38,26 +64,29 @@ async def start_replay(body: ReplayRequest, _user: dict = Depends(verify_jwt)):
     if not opportunities:
         raise HTTPException(status_code=404, detail="No opportunities found for the given date range")
 
-    _sessions[session_id] = {
-        "opportunities": opportunities,
+    session = {
+        "opportunities": [str(o) for o in opportunities],  # Serialize for JSON
         "speed": body.speed,
         "index": 0,
         "status": "ready",
         "user_id": _user.get("user_id"),
-        "created_at": asyncio.get_event_loop().time(),
+        "total_events": len(opportunities),
     }
 
+    await _save_session(session_id, session)
     return {"session_id": session_id, "status": "ready", "total_events": len(opportunities)}
 
 
 @router.get("/{session_id}/events")
 async def stream_events(session_id: str, _user: dict = Depends(verify_jwt)):
     """Stream replay events via SSE."""
-    session = _sessions.get(session_id)
+    session = await _get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Replay session not found")
 
     session["status"] = "running"
+    await _save_session(session_id, session)
+
     opportunities = session["opportunities"]
     speed = session["speed"]
 
@@ -66,8 +95,8 @@ async def stream_events(session_id: str, _user: dict = Depends(verify_jwt)):
             async for event in replay_events(opportunities, speed):
                 yield f"event: {event.event_type}\ndata: {json.dumps(event.data)}\n\n"
         finally:
-            # #3: Always clean up session on disconnect
-            _sessions.pop(session_id, None)
+            # Clean up session on disconnect
+            await _delete_session(session_id)
 
     return StreamingResponse(
         event_generator(),

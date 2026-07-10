@@ -50,19 +50,37 @@ class DatabaseService:
             backup_id = backup_row["id"]
 
         try:
-            # Run pg_dump
+            # Parse connection URL to extract components
+            from urllib.parse import urlparse
+            parsed = urlparse(config.POSTGRES_URL)
+            db_name = parsed.path.lstrip("/")
+            db_host = parsed.hostname or "localhost"
+            db_port = str(parsed.port or 5432)
+            db_user = parsed.username or "postgres"
+            db_password = parsed.password or ""
+
+            # Run pg_dump with PGPASSWORD env var (more secure than URL)
             pg_dump_cmd = [
                 "pg_dump",
-                config.POSTGRES_URL,
+                "-h", db_host,
+                "-p", db_port,
+                "-U", db_user,
+                db_name,
                 "--format=custom",
                 "--compress=6",
             ]
+
+            # Set PGPASSWORD in environment
+            import os
+            env = os.environ.copy()
+            env["PGPASSWORD"] = db_password
 
             # Run in subprocess
             process = await asyncio.create_subprocess_exec(
                 *pg_dump_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
 
             stdout, stderr = await process.communicate()

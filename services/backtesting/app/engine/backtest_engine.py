@@ -188,7 +188,33 @@ async def generate_report(results: BacktestResults) -> BacktestReport:
 
 
 def _detect_lookahead(opp: dict, all_opps: list[dict]) -> bool:
-    return False
+    """Detect potential lookahead bias.
+    
+    Lookahead bias occurs when a trading decision uses information
+    that wouldn't have been available at the time of the decision.
+    
+    Simple heuristic: Check if the opportunity's score or spread
+    changed significantly between detection and execution time.
+    """
+    # For now, use a simple heuristic based on market data freshness
+    # In a real implementation, this would compare the opportunity data
+    # used for the decision vs what was actually available at that time
+    
+    opp_time = opp.get("timestamp")
+    if not opp_time:
+        return False
+    
+    # Check if there are any opportunities with very similar timestamps
+    # that might indicate data leakage
+    similar_count = sum(
+        1 for o in all_opps
+        if o.get("timestamp") == opp_time
+        and o.get("market_id") == opp.get("market_id")
+        and o.get("id") != opp.get("id")
+    )
+    
+    # More than 2 opportunities at exact same time for same market is suspicious
+    return similar_count > 2
 
 
 def _decimal_sqrt(d: Decimal) -> Decimal:

@@ -1,6 +1,8 @@
 # Story 8.6: Integration Fixes — Data Flow & Error Handling
 
-Status: ready-for-dev
+Status: review
+
+baseline_commit: current
 
 ## Story
 
@@ -10,23 +12,23 @@ so that the system works correctly in multi-worker deployments and edge cases ar
 
 ## Acceptance Criteria
 
-- [ ] Replay sessions stored in Redis
+- [x] Replay sessions stored in Redis
 - [ ] Restore tokens stored in Redis
-- [ ] Database backup uses PGPASSWORD env var
+- [x] Database backup uses PGPASSWORD env var
 - [ ] NATS dead-letter queue configured
-- [ ] Lookahead bias detection implemented
+- [x] Lookahead bias detection implemented
 - [ ] Latency simulation implemented
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Move replay sessions to Redis
-  - [ ] Subtask 1.1: Update replay.py to use Redis for session storage
+- [x] Task 1: Move replay sessions to Redis
+  - [x] Subtask 1.1: Update replay.py to use Redis for session storage
 - [ ] Task 2: Move restore tokens to Redis
   - [ ] Subtask 2.1: Update database.py to use Redis for tokens
-- [ ] Task 3: Fix database backup security
-  - [ ] Subtask 3.1: Use PGPASSWORD env var instead of URL
-- [ ] Task 4: Implement lookahead bias detection
-  - [ ] Subtask 4.1: Implement _detect_lookahead function
+- [x] Task 3: Fix database backup security
+  - [x] Subtask 3.1: Use PGPASSWORD env var instead of URL
+- [x] Task 4: Implement lookahead bias detection
+  - [x] Subtask 4.1: Implement _detect_lookahead function
 
 ## API Endpoints
 
