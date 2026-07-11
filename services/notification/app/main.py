@@ -3,9 +3,12 @@ import logging
 import platform
 import signal
 import sys
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from aiohttp import web
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse, JSONResponse
 from prometheus_client import generate_latest
 
 from adapters.nats_subscriber import NATSSubscriber
@@ -79,31 +82,6 @@ class NotificationService:
         self._throttle_drain_task = asyncio.create_task(self._drain_throttle_queue())
 
         logger.info("Notification service started")
-        self._setup_signal_handlers()
-
-    async def _setup_signal_handlers(self) -> None:
-        if platform.system() == "Windows":
-            logger.info("Skipping POSIX signal handlers on Windows; using asyncio task watchdog for shutdown")
-            # #7: On Windows, monitor from a background task that checks a file-based
-            # shutdown flag or responds to Ctrl+C via the default handler.
-            asyncio.create_task(self._windows_shutdown_watchdog())
-            return
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, self._shutdown_event.set)
-
-    async def _windows_shutdown_watchdog(self) -> None:
-        """Windows-compatible shutdown: polls for KeyboardInterrupt via shared event."""
-        # #7: On Windows, signal handlers don't work with asyncio.
-        # The default Python Ctrl+C handler will raise KeyboardInterrupt
-        # which will propagate to the main asyncio.run() caller.
-        # This watchdog allows cooperative shutdown if run_service is
-        # cancelled externally.
-        try:
-            while not self._shutdown_event.is_set():
-                await asyncio.sleep(1.0)
-        except asyncio.CancelledError:
-            self._shutdown_event.set()
 
     async def _drain_throttle_queue(self) -> None:
         while not self._shutdown_event.is_set():
@@ -197,11 +175,6 @@ class NotificationService:
     def history_manager(self) -> HistoryManager:
         return self._history
 
-    async def run(self) -> None:
-        await self.start()
-        await self._shutdown_event.wait()
-        await self.shutdown()
-
     async def shutdown(self) -> None:
         logger.info("Shutting down notification service")
         if self._throttle_drain_task:
@@ -212,24 +185,37 @@ class NotificationService:
         logger.info("Notification service stopped")
 
 
-async def metrics_handler(request: web.Request) -> web.Response:
-    # H5: Basic auth check for metrics endpoint
-    api_key = request.headers.get("X-Internal-Key")
-    if config.INTERNAL_API_KEY and api_key != config.INTERNAL_API_KEY:
-        return web.json_response({"detail": "Invalid internal API key"}, status=401)
-    return web.Response(
-        body=generate_latest(),
-        content_type="text/plain",
-    )
+# Global service instance
+service = NotificationService()
 
 
-async def health_handler(request: web.Request) -> web.Response:
-    service: NotificationService = request.app["service"]
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await service.start()
+    yield
+    await service.shutdown()
+
+
+app = FastAPI(title="Notification", version="1.0.0", lifespan=lifespan)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:8080"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+async def health():
+    """Health check with dependency verification."""
     checks = {
         "nats": service._nats._nc is not None and not service._nats._nc.is_closed,
         "postgres": service._postgres._pool is not None,
     }
-    # #9: Add actual connectivity checks, not just object existence
+    # Add actual connectivity checks
     if checks["nats"] and service._nats._nc is not None:
         try:
             await service._nats._nc.flush(timeout=1.0)
@@ -242,34 +228,27 @@ async def health_handler(request: web.Request) -> web.Response:
         except Exception:
             checks["postgres"] = False
     all_ok = all(checks.values())
-    return web.json_response(
-        {"status": "ok" if all_ok else "degraded", "checks": checks},
-        status=200 if all_ok else 503,
+    return JSONResponse(
+        content={"status": "ok" if all_ok else "degraded", "checks": checks},
+        status_code=200 if all_ok else 503,
     )
 
 
-async def run_service() -> None:
-    service = NotificationService()
-
-    app = web.Application()
-    app["service"] = service
-    app.router.add_get("/metrics", metrics_handler)
-    app.router.add_get("/health", health_handler)
-
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "127.0.0.1", config.METRICS_PORT)
-    await site.start()
-    logger.info("Metrics server started on port %d", config.METRICS_PORT)
-
-    try:
-        await service.run()
-    finally:
-        await runner.cleanup()
+@app.get("/metrics")
+async def metrics(request: Request):
+    """Prometheus metrics endpoint with internal API key auth."""
+    api_key = request.headers.get("X-Internal-Key")
+    if config.INTERNAL_API_KEY and api_key != config.INTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid internal API key")
+    return PlainTextResponse(
+        content=generate_latest(),
+        media_type="text/plain",
+    )
 
 
 def main() -> None:
-    asyncio.run(run_service())
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=config.METRICS_PORT)
 
 
 if __name__ == "__main__":
