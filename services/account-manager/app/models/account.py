@@ -27,5 +27,7 @@ class AccountResponse(BaseModel):
 
 
 class AccountListResponse(BaseModel):
-    accounts: list[AccountResponse]
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    items: list[AccountResponse]
     total: int

@@ -2,31 +2,11 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { fetchOrderbook, fetchRecentTrades } from "@/lib/api";
-
-interface OrderbookLevel {
-  price: string;
-  size: string;
-  cumulative: string;
-}
-
-interface OrderbookData {
-  market_id: string;
-  bids: OrderbookLevel[];
-  asks: OrderbookLevel[];
-  spread: string;
-  last_update: string;
-}
-
-interface Trade {
-  price: string;
-  size: string;
-  side: string;
-  timestamp: string;
-}
+import type { OrderbookLevel, OrderbookSnapshot, RecentTrade } from "@/types";
 
 interface UseOrderbookResult {
-  orderbook: OrderbookData | null;
-  trades: Trade[];
+  orderbook: OrderbookSnapshot | null;
+  trades: RecentTrade[];
   loading: boolean;
   error: string | null;
 }

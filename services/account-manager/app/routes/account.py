@@ -160,7 +160,7 @@ async def list_accounts(
         logger.error("failed to list accounts", extra={"error": str(e)})
         raise HTTPException(status_code=503, detail="Database unavailable")
 
-    return AccountListResponse(accounts=[AccountResponse(**a) for a in accounts], total=total)
+    return AccountListResponse(items=[AccountResponse(**a) for a in accounts], total=total)
 
 
 @router.get("/{account_id}", response_model=AccountResponse)
