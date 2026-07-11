@@ -1,9 +1,15 @@
 import type { WSMessage } from "@/types";
 
 const WS_BASE = process.env.NEXT_PUBLIC_WS_URL ?? "wss://localhost:8080";
+const WS_PATH = process.env.NEXT_PUBLIC_WS_PATH ?? "/ws/dashboard";
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000];
 const MAX_RECONNECT_ATTEMPTS = 10;
 const POLL_INTERVAL_AFTER_MAX = 30000;
+
+// Validate WS_BASE uses secure protocol
+if (typeof window !== "undefined" && WS_BASE.startsWith("ws://") && !WS_BASE.includes("localhost")) {
+  console.warn("[WS] WARNING: Using insecure WebSocket connection to", WS_BASE);
+}
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -61,7 +67,7 @@ export function createWSClient(options: WSClientOptions) {
       scheduleReconnect();
       return;
     }
-    ws = new WebSocket(`${WS_BASE}/ws/dashboard?token=${encodeURIComponent(token)}`);
+    ws = new WebSocket(`${WS_BASE}${WS_PATH}?token=${encodeURIComponent(token)}`);
 
     ws.onopen = () => {
       attempt = 0;
