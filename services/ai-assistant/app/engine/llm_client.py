@@ -93,6 +93,8 @@ class LLMClient:
 
     async def ask_performance_question(self, question: str, data_points: list[dict]) -> str:
         """Ask a performance question with verified data."""
+        if not data_points:
+            return "No trading data available to answer this question."
         data_str = "\n".join(f"- {dp['label']}: {dp['value']}" for dp in data_points)
 
         messages = [

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Card } from "@/components/ui/Card";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import type { ServiceHealth, SystemHealth as SystemHealthType } from "@/types";
@@ -46,7 +47,7 @@ function overallStatusColor(overall: "healthy" | "degraded" | "unhealthy"): stri
   return "bg-[#ff4757]/10 text-[#ff4757]";
 }
 
-function ServiceCard({ service }: { service: ServiceHealth }) {
+const ServiceCard = memo(function ServiceCard({ service }: { service: ServiceHealth }) {
   return (
     <Card title={service.name}>
       <div className="space-y-3">
@@ -107,7 +108,7 @@ function ServiceCard({ service }: { service: ServiceHealth }) {
       </div>
     </Card>
   );
-}
+});
 
 function LoadingSkeleton() {
   return (

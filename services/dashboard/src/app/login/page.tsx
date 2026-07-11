@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+
+const MAX_ATTEMPTS = 5;
+const COOLDOWN_MS = 30000;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -9,9 +12,23 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const attemptsRef = useRef(0);
+  const cooldownRef = useRef(0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // Client-side rate limiting
+    const now = Date.now();
+    if (attemptsRef.current >= MAX_ATTEMPTS && now - cooldownRef.current < COOLDOWN_MS) {
+      const remaining = Math.ceil((COOLDOWN_MS - (now - cooldownRef.current)) / 1000);
+      setError(`Too many attempts. Try again in ${remaining} seconds.`);
+      return;
+    }
+    if (now - cooldownRef.current >= COOLDOWN_MS) {
+      attemptsRef.current = 0;
+    }
+
     setError(null);
     setLoading(true);
 
@@ -44,6 +61,8 @@ export default function LoginPage() {
       router.push("/");
       router.refresh();
     } catch (err) {
+      attemptsRef.current++;
+      cooldownRef.current = Date.now();
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);

@@ -419,8 +419,8 @@ export async function updateRiskLimits(accountId: string, limits: RiskLimitsUpda
 }
 
 // Backtesting API (Epic 5)
-export async function startBacktest(request: BacktestRequest): Promise<BacktestStatus> {
-  return postRequest<BacktestStatus>("/api/backtesting/run", request);
+export async function startBacktest(req: BacktestRequest): Promise<BacktestStatus> {
+  return postRequest<BacktestStatus>("/api/backtesting/run", req);
 }
 
 export async function fetchBacktestStatus(runId: string): Promise<BacktestStatus> {
@@ -431,12 +431,12 @@ export async function fetchBacktestResults(runId: string): Promise<BacktestResul
   return request<BacktestResults>(`/api/backtesting/${runId}/results`);
 }
 
-export async function fetchBacktestReport(runId: string): Promise<any> {
-  return request<any>(`/api/backtesting/${runId}/report`);
+export async function fetchBacktestReport(runId: string): Promise<import("@/types").BacktestResults> {
+  return request<import("@/types").BacktestResults>(`/api/backtesting/${runId}/report`);
 }
 
-export async function runParameterSweep(request: SweepRequest): Promise<SweepResults> {
-  return postRequest<SweepResults>("/api/backtesting/sweep", request);
+export async function runParameterSweep(req: SweepRequest): Promise<SweepResults> {
+  return postRequest<SweepResults>("/api/backtesting/sweep", req);
 }
 
 // AI Optimizer API (Epic 6)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useMemo } from "react";
+import { useRef, useCallback, useMemo, memo } from "react";
 import { useOpportunityFeed, type OpportunityStatusFilter } from "@/hooks/useOpportunityFeed";
 import type { Opportunity } from "@/types";
 
@@ -39,7 +39,7 @@ function formatTime(timestamp: string): string {
   }
 }
 
-function OpportunityRow({ opp }: { opp: Opportunity }) {
+const OpportunityRow = memo(function OpportunityRow({ opp }: { opp: Opportunity }) {
   return (
     <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 hover:bg-white/[0.02] transition-colors">
       <div className="flex-1 min-w-0">
@@ -80,7 +80,7 @@ function OpportunityRow({ opp }: { opp: Opportunity }) {
       )}
     </div>
   );
-}
+});
 
 function FilterButtons({
   filter,

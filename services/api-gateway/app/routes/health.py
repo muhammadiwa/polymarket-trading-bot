@@ -412,8 +412,13 @@ def _update_active_alerts(new_alerts: list[dict]) -> None:
         a for a in _active_alerts
         if (a["service"], a["metric"]) in services_with_alerts
     ]
-    # Add new alerts
-    _active_alerts.extend(new_alerts)
+    # Deduplicate: replace existing alerts for same service/metric
+    existing_keys = {(a["service"], a["metric"]) for a in _active_alerts}
+    for alert in new_alerts:
+        key = (alert["service"], alert["metric"])
+        if key not in existing_keys:
+            _active_alerts.append(alert)
+            existing_keys.add(key)
     ADMIN_ACTIVE_ALERTS.set(len(_active_alerts))
 
 

@@ -126,7 +126,8 @@ def _filter_by_pattern(
             return []
         return [t for t in trades if _safe_decimal(t.get("quantity", "0")) < threshold]
     else:
-        return trades
+        logger.warning("unknown pattern_type", extra={"pattern_type": pattern_type})
+        return []
 
 
 def _safe_decimal(value) -> Decimal:
