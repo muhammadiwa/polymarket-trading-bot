@@ -145,6 +145,8 @@ async def dashboard_ws(websocket: WebSocket):
     opp_executed_sub = None
     opp_filtered_sub = None
     health_sub = None
+    portfolio_sub = None
+    position_sub = None
     ping_task = None
 
     async def send_ping():
@@ -219,6 +221,28 @@ async def dashboard_ws(websocket: WebSocket):
             except Exception:
                 logger.exception("Failed to forward health update to WebSocket")
 
+        async def forward_portfolio_update(msg):
+            try:
+                raw = json.loads(msg.data.decode())
+                _enqueue({
+                    "type": "portfolio_update",
+                    "payload": raw.get("payload", raw),
+                    "timestamp": raw.get("timestamp", ""),
+                })
+            except Exception:
+                logger.exception("Failed to forward portfolio update to WebSocket")
+
+        async def forward_position_update(msg):
+            try:
+                raw = json.loads(msg.data.decode())
+                _enqueue({
+                    "type": "position_update",
+                    "payload": raw.get("payload", raw),
+                    "timestamp": raw.get("timestamp", ""),
+                })
+            except Exception:
+                logger.exception("Failed to forward position update to WebSocket")
+
         risk_sub = await nc.subscribe("pqap.risk.state_updated", cb=forward_risk_update)
 
         opp_detected_sub = await nc.subscribe("pqap.opportunity.detected", cb=forward_opportunity)
@@ -227,6 +251,10 @@ async def dashboard_ws(websocket: WebSocket):
 
         # #2: Subscribe to health updates from system services
         health_sub = await nc.subscribe("pqap.system.health.>", cb=forward_health_update)
+
+        # Subscribe to portfolio and position updates
+        portfolio_sub = await nc.subscribe("pqap.portfolio.>", cb=forward_portfolio_update)
+        position_sub = await nc.subscribe("pqap.position.>", cb=forward_position_update)
 
         ping_task = asyncio.create_task(send_ping())
 
@@ -257,6 +285,10 @@ async def dashboard_ws(websocket: WebSocket):
             await opp_filtered_sub.unsubscribe()
         if health_sub:
             await health_sub.unsubscribe()
+        if portfolio_sub:
+            await portfolio_sub.unsubscribe()
+        if position_sub:
+            await position_sub.unsubscribe()
         # #3: Shared NATS connection — do NOT close it here
         async with user_lock:
             _connection_counts[user_id] = max(0, _connection_counts.get(user_id, 1) - 1)
