@@ -503,7 +503,7 @@ async def update_parameters(
             logger.exception("Failed to persist risk parameters to PostgreSQL")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Parameters updated in memory but failed to persist to database",
+                detail="Operation partially completed. Please try again.",
             )
 
         # #7: Publish NATS command

@@ -213,6 +213,10 @@ class NotificationService:
 
 
 async def metrics_handler(request: web.Request) -> web.Response:
+    # H5: Basic auth check for metrics endpoint
+    api_key = request.headers.get("X-Internal-Key")
+    if config.INTERNAL_API_KEY and api_key != config.INTERNAL_API_KEY:
+        return web.json_response({"detail": "Invalid internal API key"}, status=401)
     return web.Response(
         body=generate_latest(),
         content_type="text/plain",

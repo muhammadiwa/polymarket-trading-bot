@@ -22,6 +22,7 @@ async def answer_question(
     pool: asyncpg.Pool,
     llm: LLMClient,
     question: str,
+    user_id: str = "",
 ) -> dict:
     """Answer a performance question with verified data."""
     start_time = time.time()

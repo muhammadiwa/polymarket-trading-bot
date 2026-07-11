@@ -57,7 +57,7 @@ async def _authenticate_ws(websocket: WebSocket) -> dict | None:
         return None
 
     try:
-        payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM])
+        payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM], options={"verify_exp": True})
         return payload
     except JWTError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")

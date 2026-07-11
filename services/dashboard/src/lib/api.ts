@@ -226,11 +226,13 @@ export async function fetchOpportunities(cursor?: string, pageSize = 50, status?
 
 // Analytics API
 export async function fetchAnalyticsPnL(startDate: string, endDate: string, groupBy = "day"): Promise<import("@/types").PnLData> {
-  return request<import("@/types").PnLData>(`/api/analytics/pnl?start_date=${startDate}&end_date=${endDate}&group_by=${groupBy}`);
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, group_by: groupBy });
+  return request<import("@/types").PnLData>(`/api/analytics/pnl?${params.toString()}`);
 }
 
 export async function fetchAnalyticsHistogram(startDate: string, endDate: string, bins = 20): Promise<import("@/types").HistogramData> {
-  return request<import("@/types").HistogramData>(`/api/analytics/histogram?start_date=${startDate}&end_date=${endDate}&bins=${bins}`);
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, bins: String(bins) });
+  return request<import("@/types").HistogramData>(`/api/analytics/histogram?${params.toString()}`);
 }
 
 export async function downloadCSV(startDate: string, endDate: string, side?: string, pnlSign?: string, strategyId?: string, marketId?: string): Promise<void> {
@@ -244,21 +246,26 @@ export async function downloadCSV(startDate: string, endDate: string, side?: str
   if (strategyId) params.set("strategy_id", strategyId);
   if (marketId) params.set("market_id", marketId);
 
-  const res = await fetch(`${API_BASE}/api/analytics/export?${params.toString()}`, { headers, credentials: "include" });
-  // #1: Handle 401 redirect
-  if (res.status === 401) {
-    window.location.href = "/login";
-    return;
-  }
-  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${API_BASE}/api/analytics/export?${params.toString()}`, { headers, credentials: "include", signal: controller.signal });
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
 
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `trades_${startDate}_${endDate}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `trades_${startDate}_${endDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function downloadJSON(startDate: string, endDate: string, side?: string, pnlSign?: string, strategyId?: string, marketId?: string): Promise<void> {
@@ -272,21 +279,26 @@ export async function downloadJSON(startDate: string, endDate: string, side?: st
   if (strategyId) params.set("strategy_id", strategyId);
   if (marketId) params.set("market_id", marketId);
 
-  const res = await fetch(`${API_BASE}/api/analytics/export/json?${params.toString()}`, { headers, credentials: "include" });
-  // #1: Handle 401 redirect
-  if (res.status === 401) {
-    window.location.href = "/login";
-    return;
-  }
-  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${API_BASE}/api/analytics/export/json?${params.toString()}`, { headers, credentials: "include", signal: controller.signal });
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
 
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `trades_${startDate}_${endDate}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `trades_${startDate}_${endDate}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Orderbook API
@@ -390,8 +402,8 @@ export async function fetchCrossAccountRisk(): Promise<CrossAccountRisk> {
   return request<CrossAccountRisk>("/api/risk/cross-account");
 }
 
-export async function fetchPerAccountRisk(accountId: string): Promise<CrossAccountRisk> {
-  return request<CrossAccountRisk>(`/api/risk/status?account_id=${accountId}`);
+export async function fetchPerAccountRisk(accountId: string): Promise<PerAccountRiskLimits> {
+  return request<PerAccountRiskLimits>(`/api/risk/limits/${accountId}`);
 }
 
 export async function fetchRiskLimits(accountId: string): Promise<PerAccountRiskLimits> {

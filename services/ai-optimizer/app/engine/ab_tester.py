@@ -85,24 +85,6 @@ def calculate_significance(
     )
 
 
-def simulate_trade_outcome(
-    entry_price: Decimal,
-    exit_price: Optional[Decimal],
-    quantity: Decimal,
-    side: str,
-) -> Optional[Decimal]:
-    """Calculate PnL for a simulated trade."""
-    if exit_price is None:
-        return None
-
-    if side == "YES":
-        pnl = (exit_price - entry_price) * quantity
-    else:
-        pnl = (entry_price - exit_price) * quantity
-
-    return pnl
-
-
 def _stddev(values: list[float], mean: float) -> float:
     if len(values) < 2:
         return 0.0

@@ -20,7 +20,7 @@ class Config:
     TRADE_HISTORY_RETENTION_YEARS: int = int(os.getenv("TRADE_HISTORY_RETENTION_YEARS", "7"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
     NATS_URL: str = os.getenv("NATS_URL", "nats://localhost:4222")
-    CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+    CORS_ORIGINS: list[str] = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
     PORTFOLIO_SERVICE_URL: str = os.getenv("PORTFOLIO_SERVICE_URL", "http://localhost:8081")
     POSITION_SERVICE_URL: str = os.getenv("POSITION_SERVICE_URL", "http://localhost:8082")
     RISK_MANAGER_URL: str = os.getenv("RISK_MANAGER_URL", "http://localhost:8083")

@@ -16,7 +16,7 @@ class Config:
     NATS_URL: str = os.getenv("NATS_URL", "nats://localhost:4222")
     NATS_SUBJECT: str = os.getenv("NATS_SUBJECT", "pqap.notification.request")
 
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+    DATABASE_URL: str = os.getenv("POSTGRES_URL", os.getenv("DATABASE_URL", ""))
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
 
     NOTIFICATION_MAX_PER_MINUTE: int = _int_env("NOTIFICATION_MAX_PER_MINUTE", "10")
@@ -29,6 +29,7 @@ class Config:
 
     METRICS_PORT: int = _int_env("METRICS_PORT", "9090")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
+    INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "")
 
 
 config = Config()

@@ -2,7 +2,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from fastapi.responses import StreamingResponse
 
 from app.config import config
@@ -176,11 +176,6 @@ async def export_trades(
     pool = await get_pool()
 
     if format == "csv":
-        async def csv_stream():
-            async with pool.acquire() as conn:
-                async for trade in trade_repo.export_trades(conn, filters):
-                    yield trade
-
         async def csv_response():
             row_count = 0
             yield _csv_header()
@@ -242,7 +237,7 @@ def _json_trade_bytes(trade: TradeResponse) -> bytes:
 
 @router.get("/{trade_id}", response_model=TradeResponse)
 async def get_trade(
-    trade_id: str,
+    trade_id: str = Path(..., pattern=r"^[0-9a-f-]{36}$"),
     _user: dict = Depends(verify_jwt),
 ):
     pool = await get_pool()

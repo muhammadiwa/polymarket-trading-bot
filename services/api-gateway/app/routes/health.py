@@ -463,7 +463,7 @@ async def admin_health_websocket(websocket: WebSocket):
                 await websocket.close(code=4003, reason="Admin access required")
                 return
         except (JWTError, HTTPException) as e:
-            await websocket.close(code=4001, reason=f"Invalid token: {str(e)}")
+            await websocket.close(code=4001, reason="Invalid token")
             return
 
         # Now accept the connection after successful auth

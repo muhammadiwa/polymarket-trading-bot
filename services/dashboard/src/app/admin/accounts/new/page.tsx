@@ -38,6 +38,8 @@ export default function NewAccountPage() {
       };
 
       await createAccount(request);
+      // Clear sensitive data from state immediately
+      setPrivateKey("");
       router.push("/admin/accounts");
     } catch (err: any) {
       setError(err.message || "Failed to create account");

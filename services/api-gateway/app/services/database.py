@@ -165,36 +165,45 @@ class DatabaseService:
                 raise Exception("Backup file not found on disk")
 
         # Decompress and restore
+        temp_file = file_path.with_suffix("")
         try:
             # Decompress
             with gzip.open(file_path, "rb") as f:
                 dump_data = f.read()
 
             # Write to temporary file
-            temp_file = file_path.with_suffix("")
             with open(temp_file, "wb") as f:
                 f.write(dump_data)
 
-            # Run pg_restore
+            # Parse POSTGRES_URL to avoid exposing credentials in process list
+            from urllib.parse import urlparse
+            parsed = urlparse(config.POSTGRES_URL)
+            pg_host = parsed.hostname or "localhost"
+            pg_port = str(parsed.port or 5432)
+            pg_user = parsed.username or "postgres"
+            pg_dbname = parsed.path.lstrip("/") or "pqap"
+
+            # Run pg_restore with PGPASSWORD env var
             pg_restore_cmd = [
                 "pg_restore",
                 "--clean",
                 "--if-exists",
-                config.POSTGRES_URL,
+                "-h", pg_host,
+                "-p", pg_port,
+                "-U", pg_user,
+                "-d", pg_dbname,
                 str(temp_file),
             ]
 
+            env = {"PGPASSWORD": parsed.password or ""}
             process = await asyncio.create_subprocess_exec(
                 *pg_restore_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env={**dict(__import__("os").environ), **env},
             )
 
             stdout, stderr = await process.communicate()
-
-            # Clean up temp file
-            if temp_file.exists():
-                temp_file.unlink()
 
             if process.returncode != 0:
                 error_msg = stderr.decode() if stderr else "Unknown error"
@@ -204,6 +213,10 @@ class DatabaseService:
 
         except Exception as e:
             raise
+        finally:
+            # Clean up temp file in all cases
+            if temp_file.exists():
+                temp_file.unlink()
 
     async def cleanup_old_data(self, retention_days: int, tables: list[str] = None) -> dict:
         """Clean up old data based on retention policy."""

@@ -41,16 +41,19 @@ async def get_overview(
 
 @router.put("/capital", response_model=PortfolioOverview)
 async def update_capital(
-    total_capital: float,
-    deployed_capital: float,
+    total_capital: str,
+    deployed_capital: str,
     account_id: Optional[str] = Query(None),
     _user: dict = Depends(verify_jwt),
 ):
-    if total_capital < 0:
+    from decimal import Decimal
+    total = Decimal(total_capital)
+    deployed = Decimal(deployed_capital)
+    if total < 0:
         raise HTTPException(status_code=400, detail="Total capital cannot be negative")
-    if deployed_capital < 0:
+    if deployed < 0:
         raise HTTPException(status_code=400, detail="Deployed capital cannot be negative")
-    if deployed_capital > total_capital:
+    if deployed > total:
         raise HTTPException(status_code=400, detail="Deployed capital cannot exceed total")
 
     _validate_uuid(account_id)

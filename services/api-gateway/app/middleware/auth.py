@@ -83,7 +83,8 @@ def decode_jwt(token: str) -> dict:
         # To add revocation, maintain a Redis blacklist keyed by jti claim
         # and check it here. For now, keep JWT expiry short (see AUTH_JWT_EXPIRY).
         payload = jwt.decode(
-            token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM]
+            token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM],
+            options={"verify_exp": True}
         )
         return payload
     except JWTError as e:

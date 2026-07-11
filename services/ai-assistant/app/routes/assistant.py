@@ -75,7 +75,7 @@ async def ask_question(
         raise _rate_limit_error()
 
     try:
-        result = await answer_question(pool=await get_pool(), llm=llm, question=request.question)
+        result = await answer_question(pool=await get_pool(), llm=llm, question=request.question, user_id=user_id)
     except httpx.TimeoutException:
         logger.warning("llm timeout", extra={"user_id": user_id})
         raise HTTPException(status_code=504, detail="LLM request timed out. Please try again.")
