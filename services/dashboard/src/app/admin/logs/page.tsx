@@ -79,7 +79,7 @@ export default function LogsPage() {
     setFilters((prev) => ({ ...prev, search: searchText, offset: 0 }));
   };
 
-  const handleFilterChange = (key: keyof LogQueryParams, value: any) => {
+  const handleFilterChange = (key: keyof LogQueryParams, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value || undefined, offset: 0 }));
   };
 

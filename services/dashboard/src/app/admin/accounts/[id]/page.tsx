@@ -51,8 +51,8 @@ export default function EditAccountPage() {
       await updateAccount(accountId, request);
       setSuccess("Account updated successfully");
       loadAccount();
-    } catch (err: any) {
-      setError(err.message || "Failed to update account");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update account");
     } finally {
       setSaving(false);
     }
@@ -74,8 +74,8 @@ export default function EditAccountPage() {
       }
 
       loadAccount();
-    } catch (err: any) {
-      setError(err.message || "Failed to update account status");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update account status");
     }
   };
 
