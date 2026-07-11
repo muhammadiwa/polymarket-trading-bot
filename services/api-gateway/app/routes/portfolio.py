@@ -2,7 +2,7 @@ import time
 from datetime import datetime, timezone
 
 import httpx
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 
 from app.config import config
 from app.middleware.auth import verify_jwt
