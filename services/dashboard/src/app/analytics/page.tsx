@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AuthGuard } from "@/lib/auth/auth-guard";
+import { AppShell } from "@/components/layout/AppShell";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { PnLLineChart } from "@/components/charts/PnLLineChart";
 import { PnLHistogram } from "@/components/charts/PnLHistogram";
@@ -46,7 +46,7 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <AuthGuard>
+    <AppShell>
       <div className="space-y-6 p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold text-white">Analytics</h1>
@@ -129,6 +129,6 @@ export default function AnalyticsPage() {
         </div>
       </div>
       </div>
-    </AuthGuard>
+    </AppShell>
   );
 }

@@ -10,6 +10,7 @@ import {
   cleanupDatabase,
   fetchDatabaseStats,
 } from "@/lib/api";
+import { AppShell } from "@/components/layout/AppShell";
 import { AdminGuard } from "@/lib/auth/auth-guard";
 
 const ELIGIBLE_TABLES = [
@@ -156,6 +157,7 @@ export default function DatabasePage() {
   }
 
   return (
+    <AppShell>
     <AdminGuard>
     <div className="space-y-8">
       <h2 className="text-xl font-semibold text-white">Database Management</h2>
@@ -355,5 +357,6 @@ export default function DatabasePage() {
       </div>
     </div>
     </AdminGuard>
+    </AppShell>
   );
 }

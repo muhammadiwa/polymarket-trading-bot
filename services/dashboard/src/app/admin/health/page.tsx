@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AdminHealthStatus, HealthAlert, ServiceHealth } from "@/types";
 import { fetchAdminHealth } from "@/lib/api";
+import { AppShell } from "@/components/layout/AppShell";
 import { AdminGuard } from "@/lib/auth/auth-guard";
 
 export default function HealthPage() {
@@ -73,6 +74,7 @@ export default function HealthPage() {
   }
 
   return (
+    <AppShell>
     <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -199,5 +201,6 @@ export default function HealthPage() {
       )}
     </div>
     </AdminGuard>
+    </AppShell>
   );
 }

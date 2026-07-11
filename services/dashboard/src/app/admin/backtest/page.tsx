@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BacktestRequest, BacktestResults, BacktestStatus, SimulationConfig } from "@/types";
 import { startBacktest, fetchBacktestStatus, fetchBacktestResults } from "@/lib/api";
+import { AppShell } from "@/components/layout/AppShell";
 import { AdminGuard } from "@/lib/auth/auth-guard";
 
 const DEFAULT_SIMULATION: SimulationConfig = {
@@ -104,6 +105,7 @@ export default function BacktestPage() {
   };
 
   return (
+    <AppShell>
     <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -345,5 +347,6 @@ export default function BacktestPage() {
       )}
     </div>
     </AdminGuard>
+    </AppShell>
   );
 }

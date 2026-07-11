@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SystemLog, LogQueryParams } from "@/types";
 import { fetchAdminLogs, fetchLogServices } from "@/lib/api";
+import { AppShell } from "@/components/layout/AppShell";
 import { AdminGuard } from "@/lib/auth/auth-guard";
 
 const LOG_LEVELS = [
@@ -93,6 +94,7 @@ export default function LogsPage() {
   };
 
   return (
+    <AppShell>
     <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -264,5 +266,6 @@ export default function LogsPage() {
       )}
     </div>
     </AdminGuard>
+    </AppShell>
   );
 }

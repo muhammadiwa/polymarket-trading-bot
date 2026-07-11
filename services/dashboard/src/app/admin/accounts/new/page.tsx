@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { AccountCreateRequest } from "@/types";
 import { createAccount } from "@/lib/api";
+import { AppShell } from "@/components/layout/AppShell";
 import { AdminGuard } from "@/lib/auth/auth-guard";
 
 export default function NewAccountPage() {
@@ -57,6 +58,7 @@ export default function NewAccountPage() {
   };
 
   return (
+    <AppShell>
     <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -134,5 +136,6 @@ export default function NewAccountPage() {
       </form>
     </div>
     </AdminGuard>
+    </AppShell>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { AuthGuard } from "@/lib/auth/auth-guard";
+import { AppShell } from "@/components/layout/AppShell";
 import { ReplayControls } from "@/components/replay/ReplayControls";
 import { DecisionLog } from "@/components/replay/DecisionLog";
 
@@ -227,7 +227,7 @@ export default function ReplayPage() {
   }, [cleanup]);
 
   return (
-    <AuthGuard>
+    <AppShell>
       <div className="space-y-6 p-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-white">Replay Mode</h1>
@@ -265,6 +265,6 @@ export default function ReplayPage() {
 
         <DecisionLog decisions={decisions} />
       </div>
-    </AuthGuard>
+    </AppShell>
   );
 }

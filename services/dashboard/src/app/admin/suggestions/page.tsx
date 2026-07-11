@@ -11,6 +11,7 @@ import {
   fetchOverfittingAnalysis,
   runAnalysis,
 } from "@/lib/api";
+import { AppShell } from "@/components/layout/AppShell";
 import { AdminGuard } from "@/lib/auth/auth-guard";
 
 export default function SuggestionsPage() {
@@ -152,6 +153,7 @@ export default function SuggestionsPage() {
   };
 
   return (
+    <AppShell>
     <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -378,5 +380,6 @@ export default function SuggestionsPage() {
       )}
     </div>
     </AdminGuard>
+    </AppShell>
   );
 }

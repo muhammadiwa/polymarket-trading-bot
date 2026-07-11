@@ -1,14 +1,14 @@
 "use client";
 
-import { AuthGuard } from "@/lib/auth/auth-guard";
+import { AppShell } from "@/components/layout/AppShell";
 import { OrderbookView } from "@/components/orderbook/OrderbookView";
 
 export default function OrderbookPage() {
   return (
-    <AuthGuard>
+    <AppShell>
       <div className="p-6">
         <OrderbookView />
       </div>
-    </AuthGuard>
+    </AppShell>
   );
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SystemConfig, ConfigAuditLog } from "@/types";
 import { fetchAdminConfigs, updateAdminConfig, fetchConfigAuditLogs } from "@/lib/api";
+import { AppShell } from "@/components/layout/AppShell";
 import { AdminGuard } from "@/lib/auth/auth-guard";
 
 const CATEGORIES = [
@@ -131,6 +132,7 @@ export default function ConfigPage() {
   };
 
   return (
+    <AppShell>
     <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -323,5 +325,6 @@ export default function ConfigPage() {
       )}
     </div>
     </AdminGuard>
+    </AppShell>
   );
 }

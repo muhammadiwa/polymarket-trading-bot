@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { AppShell } from "@/components/layout/AppShell";
 import { AdminGuard } from "@/lib/auth/auth-guard";
 
 export default function AdminPage() {
   return (
+    <AppShell>
     <AdminGuard>
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       <Link
@@ -99,5 +101,6 @@ export default function AdminPage() {
       </div>
     </div>
     </AdminGuard>
+    </AppShell>
   );
 }
