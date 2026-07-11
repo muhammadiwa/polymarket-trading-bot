@@ -57,7 +57,7 @@ Classify the user's question into one of these categories:
 Return ONLY a JSON object with "category" and optional "period" or "market_id" fields.
 Example: {"category": "pnl", "period": "week"}"""
 
-JSON_PATTERN = re.compile(r"\{[^}]+\}")
+JSON_PATTERN = re.compile(r"\{(?:[^{}]|\{[^{}]*\})*\}")
 
 
 class LLMClient:

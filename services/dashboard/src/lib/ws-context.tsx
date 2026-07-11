@@ -52,12 +52,13 @@ export function WSProvider({ children }: { children: ReactNode }) {
           console.warn("[WS] Invalid message format:", message);
           return;
         }
-        const payload = message.payload as Record<string, unknown>;
-        if (message.type === "portfolio_update" && typeof payload.totalCapital === "string") {
+        const payload = message.payload as unknown as Record<string, unknown>;
+        if (message.type === "portfolio_update" && typeof payload.totalCapital === "string" && typeof payload.dailyPnL === "string") {
           setPortfolioData(message.payload as PortfolioOverview);
         } else if (message.type === "position_update" && Array.isArray(payload)) {
-          setPositionData(message.payload as Position[]);
-        } else if (message.type === "risk_update" && typeof payload.isPaused === "boolean") {
+          const valid = payload.every((p: any) => p && typeof p.id === "string" && typeof p.market === "string");
+          if (valid) setPositionData(message.payload as Position[]);
+        } else if (message.type === "risk_update" && typeof payload.isPaused === "boolean" && typeof payload.drawdownThreshold === "string") {
           setRiskData(message.payload as RiskStatus);
         } else if (message.type === "health_update" && typeof payload.overall === "string") {
           setHealthData(message.payload as SystemHealth);

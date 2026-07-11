@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BacktestRequest, BacktestResults, BacktestStatus, SimulationConfig } from "@/types";
 import { startBacktest, fetchBacktestStatus, fetchBacktestResults } from "@/lib/api";
+import { AdminGuard } from "@/lib/auth/auth-guard";
 
 const DEFAULT_SIMULATION: SimulationConfig = {
   slippagePct: 0.01,
@@ -103,6 +104,7 @@ export default function BacktestPage() {
   };
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Link href="/admin" className="text-gray-400 hover:text-white">
@@ -342,5 +344,6 @@ export default function BacktestPage() {
         </div>
       )}
     </div>
+    </AdminGuard>
   );
 }

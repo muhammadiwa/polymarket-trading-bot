@@ -7,7 +7,7 @@ from typing import Optional
 
 import httpx
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 
 from app.config import config
@@ -85,6 +85,7 @@ HEALTH_THRESHOLDS = {
 }
 
 # Active alerts storage (in-memory for now, can be moved to Redis)
+_MAX_ACTIVE_ALERTS = 100
 _active_alerts: list[dict] = []
 _alert_id_counter = 0
 
@@ -277,8 +278,25 @@ async def _aggregate_health(include_alerts: bool = False) -> dict:
         key: asyncio.create_task(_poll_service(client, key, url))
         for key, url in SERVICE_URLS.items()
     }
-    for key, task in tasks.items():
-        services[key] = await task
+    try:
+        results = await asyncio.wait_for(
+            asyncio.gather(*tasks.values(), return_exceptions=True),
+            timeout=15.0,
+        )
+        for key, result in zip(tasks.keys(), results):
+            if isinstance(result, Exception):
+                logger.debug("Health poll exception for %s: %s", key, result)
+                services[key] = _empty_service_health(key)
+            else:
+                services[key] = result
+    except asyncio.TimeoutError:
+        logger.warning("Health poll timed out after 15s")
+        for key in tasks:
+            if key not in services:
+                services[key] = _empty_service_health(key)
+        for task in tasks.values():
+            if not task.done():
+                task.cancel()
 
     elapsed = (time.monotonic() - start) * 1000
     HEALTH_POLL_LATENCY.observe(elapsed)
@@ -340,8 +358,8 @@ admin_health_router = APIRouter(prefix="/api/admin", tags=["admin-health"])
 async def get_admin_health(user: dict = Depends(extract_user)):
     """Get aggregated health status with alerts. Requires admin role."""
     require_admin(user)
-    ADMIN_HEALTH_CHECKS_TOTAL.inc()
 
+    ADMIN_HEALTH_CHECKS_TOTAL.inc()
     start = time.monotonic()
     result = await _aggregate_health(include_alerts=True)
     elapsed = (time.monotonic() - start) * 1000
@@ -362,6 +380,9 @@ async def get_admin_health_services(user: dict = Depends(extract_user)):
         result.get("executionEngine"),
         result.get("riskManager"),
         result.get("positionManager"),
+        result.get("backtesting"),
+        result.get("aiOptimizer"),
+        result.get("accountManager"),
     ]
     return {"services": services, "overall": result.get("overall"), "lastUpdated": result.get("lastUpdated")}
 
@@ -419,6 +440,9 @@ def _update_active_alerts(new_alerts: list[dict]) -> None:
         if key not in existing_keys:
             _active_alerts.append(alert)
             existing_keys.add(key)
+    # Cap to prevent unbounded growth
+    if len(_active_alerts) > _MAX_ACTIVE_ALERTS:
+        _active_alerts[:] = _active_alerts[-_MAX_ACTIVE_ALERTS:]
     ADMIN_ACTIVE_ALERTS.set(len(_active_alerts))
 
 
@@ -517,7 +541,7 @@ async def admin_health_websocket(websocket: WebSocket):
     except WebSocketDisconnect:
         return
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error("WebSocket error: %s", type(e).__name__)
         try:
             await websocket.close(code=1011, reason="Internal server error")
         except Exception:

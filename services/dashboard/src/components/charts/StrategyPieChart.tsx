@@ -48,8 +48,8 @@ export function StrategyPieChart({ data, loading }: StrategyPieChartProps) {
             dataKey="value"
             label={({ name, percent }) => `${name} (${(percent * 100).toFixed(1)}%)`}
           >
-            {chartData.map((_, index) => (
-              <Cell key={index} fill={COLORS[index % COLORS.length]} />
+            {chartData.map((entry, index) => (
+              <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
           <Tooltip

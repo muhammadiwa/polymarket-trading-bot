@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -59,8 +60,8 @@ async def get_or_create_tier(conn: asyncpg.Connection, account_id: Optional[str]
 
 async def update_capital(
     conn: asyncpg.Connection,
-    total_capital: float,
-    deployed_capital: float,
+    total_capital: Decimal,
+    deployed_capital: Decimal,
     account_id: Optional[str] = None,
 ) -> PortfolioOverview:
     # #11: Validate UUID
@@ -72,8 +73,8 @@ async def update_capital(
     if deployed_capital < 0:
         raise ValueError("deployed_capital cannot be negative")
 
-    tier_info = get_tier_for_capital(total_capital)
-    utilization = deployed_capital / total_capital if total_capital > 0 else 0
+    tier_info = get_tier_for_capital(Decimal(str(total_capital)))
+    utilization = Decimal(str(deployed_capital)) / Decimal(str(total_capital)) if total_capital > 0 else Decimal("0")
 
     # #3: Wrap in transaction for atomicity
     async with conn.transaction():
@@ -139,31 +140,31 @@ async def update_capital(
                 "capital": total_capital, "reason": reason,
             })
 
-    tier_limits = get_tier_for_capital(total_capital)
+    tier_limits = get_tier_for_capital(Decimal(str(total_capital)))
 
     return PortfolioOverview(
-        total_capital=total_capital,
-        deployed_capital=deployed_capital,
-        utilization_rate=round(utilization, 4),
+        total_capital=Decimal(str(total_capital)),
+        deployed_capital=Decimal(str(deployed_capital)),
+        utilization_rate=Decimal(str(round(utilization, 4))),
         current_tier=new_tier,
         tier_limits=tier_limits,
         days_above_threshold=days_above,
-        promotion_threshold=TIER_THRESHOLDS[min(new_tier, len(TIER_THRESHOLDS)-1)]["max"],
+        promotion_threshold=Decimal(str(TIER_THRESHOLDS[min(new_tier, len(TIER_THRESHOLDS)-1)]["max"])),
     )
 
 
 async def get_overview(conn: asyncpg.Connection, account_id: Optional[str] = None) -> PortfolioOverview:
     account_id = _validate_uuid(account_id)
     current = await get_or_create_tier(conn, account_id)
-    tier_limits = get_tier_for_capital(float(current["total_capital"]))
+    tier_limits = get_tier_for_capital(Decimal(str(current["total_capital"])))
     return PortfolioOverview(
-        total_capital=float(current["total_capital"]),
-        deployed_capital=float(current["deployed_capital"]),
-        utilization_rate=float(current["utilization_rate"]),
+        total_capital=Decimal(str(current["total_capital"])),
+        deployed_capital=Decimal(str(current["deployed_capital"])),
+        utilization_rate=Decimal(str(current["utilization_rate"])),
         current_tier=current["current_tier"],
         tier_limits=tier_limits,
         days_above_threshold=current["days_above_threshold"],
-        promotion_threshold=float(current["promotion_threshold"]) if current["promotion_threshold"] else None,
+        promotion_threshold=Decimal(str(current["promotion_threshold"])) if current["promotion_threshold"] else None,
     )
 
 
@@ -200,7 +201,7 @@ async def get_tier_transitions(
     return [
         TierTransition(
             from_tier=r["from_tier"], to_tier=r["to_tier"],
-            capital=float(r["capital_at_transition"]), reason=r["reason"],
+            capital=Decimal(str(r["capital_at_transition"])), reason=r["reason"],
             created_at=r["created_at"],
         )
         for r in rows

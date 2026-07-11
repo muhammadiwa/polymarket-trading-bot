@@ -5,11 +5,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import make_asgi_app
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import config
 from app.db import close_pool
-from app.routes.portfolio import router as portfolio_router
+from app.routes.portfolio import router as portfolio_router, close_http_client as close_portfolio_http_client
 from app.routes.risk import router as risk_router
 from app.routes.trades import router as trades_router
 from app.routes.ws import router as ws_router
@@ -28,7 +29,7 @@ from app.middleware.csrf import CSRFMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
-    format='{"level":"%(levelname)s","service":"api-gateway","msg":"%(message)s"}',
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI):
     await init_orderbook_client()
     yield
     await close_orderbook_client()
+    await close_portfolio_http_client()
     await close_http_client()
     await close_redis_pool()
     await close_pool()
@@ -72,6 +74,8 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(CSRFMiddleware)
+
+app.mount("/metrics", make_asgi_app())
 
 app.include_router(auth_router)
 app.include_router(admin_router)

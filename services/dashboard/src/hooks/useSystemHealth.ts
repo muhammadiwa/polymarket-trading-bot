@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchSystemHealth } from "@/lib/api";
 import { useWSContext } from "@/lib/ws-context";
+import type { WSStatus } from "@/lib/websocket";
 import type { SystemHealth } from "@/types";
 
 interface UseSystemHealthResult {
   data: SystemHealth | null;
   loading: boolean;
   error: string | null;
-  wsStatus: "connecting" | "connected" | "disconnected";
+  wsStatus: WSStatus;
   refresh: () => Promise<void>;
 }
 

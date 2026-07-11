@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -53,6 +54,7 @@ async def anomaly_check_loop():
 
                 if anomalies:
                     nc = await _get_nats()
+                    try:
                         for anomaly in anomalies:
                             anomaly_id = await analytics_repo.log_anomaly(conn, anomaly)
                             if anomaly_id:
@@ -122,10 +124,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Analytics", version="1.0.0", lifespan=lifespan)
 
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -148,5 +152,15 @@ async def health():
         checks["database"] = "ok"
     except Exception:
         checks["database"] = "error"
+        checks["status"] = "degraded"
+    try:
+        nc = await _get_nats()
+        if nc.is_connected:
+            checks["nats"] = "ok"
+        else:
+            checks["nats"] = "disconnected"
+            checks["status"] = "degraded"
+    except Exception:
+        checks["nats"] = "error"
         checks["status"] = "degraded"
     return checks

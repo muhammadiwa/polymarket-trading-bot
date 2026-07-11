@@ -42,9 +42,32 @@ import type {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("jwt_token");
+  // Read from HttpOnly cookie (set by server) instead of localStorage
+  const cookies = document.cookie.split(";").map((c) => c.trim());
+  const sessionCookie = cookies.find((c) => c.startsWith("pqap_session="));
+  return sessionCookie?.split("=")[1] ?? null;
 }
 
 function getCsrfToken(): string | null {
@@ -91,6 +114,23 @@ async function request<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
     });
     if (!res.ok) {
       if (res.status === 401) {
+        const refreshed = await tryRefreshToken();
+        if (refreshed) {
+          const retryRes = await fetch(`${API_BASE}${path}`, {
+            headers: { ...headers, Authorization: `Bearer ${getToken()}` },
+            signal: controller.signal,
+            credentials: "include",
+          });
+          if (retryRes.ok) {
+            const retryText = await retryRes.text();
+            if (!retryText) throw new Error("Empty response from server");
+            try {
+              return JSON.parse(retryText) as T;
+            } catch {
+              throw new Error("Invalid JSON response from server");
+            }
+          }
+        }
         window.location.href = "/login";
         throw new Error("Session expired");
       }
@@ -99,7 +139,7 @@ async function request<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
       throw new Error(errorBody?.detail ?? `API error: ${res.status} ${res.statusText}`);
     }
     const text = await res.text();
-    if (!text) return undefined as T;
+    if (!text) throw new Error("Empty response from server");
     try {
       return JSON.parse(text) as T;
     } catch {
@@ -134,6 +174,22 @@ async function postRequest<T>(path: string, body?: unknown, timeoutMs = DEFAULT_
     });
     if (!res.ok) {
       if (res.status === 401) {
+        const refreshed = await tryRefreshToken();
+        if (refreshed) {
+          const freshToken = getToken();
+          const freshCsrf = getCsrfToken();
+          const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
+          if (freshToken) retryHeaders["Authorization"] = `Bearer ${freshToken}`;
+          if (freshCsrf) retryHeaders["X-CSRF-Token"] = freshCsrf;
+          const retryRes = await fetch(`${API_BASE}${path}`, {
+            method: "POST",
+            headers: retryHeaders,
+            body: body ? JSON.stringify(convertKeysToSnakeCase(body)) : undefined,
+            signal: controller.signal,
+            credentials: "include",
+          });
+          if (retryRes.ok) return retryRes.json();
+        }
         window.location.href = "/login";
         throw new Error("Unauthorized");
       }
@@ -170,6 +226,22 @@ async function putRequest<T>(path: string, body: unknown, timeoutMs = DEFAULT_TI
     });
     if (!res.ok) {
       if (res.status === 401) {
+        const refreshed = await tryRefreshToken();
+        if (refreshed) {
+          const freshToken = getToken();
+          const freshCsrf = getCsrfToken();
+          const retryHeaders: Record<string, string> = { "Content-Type": "application/json" };
+          if (freshToken) retryHeaders["Authorization"] = `Bearer ${freshToken}`;
+          if (freshCsrf) retryHeaders["X-CSRF-Token"] = freshCsrf;
+          const retryRes = await fetch(`${API_BASE}${path}`, {
+            method: "PUT",
+            headers: retryHeaders,
+            body: JSON.stringify(convertKeysToSnakeCase(body)),
+            signal: controller.signal,
+            credentials: "include",
+          });
+          if (retryRes.ok) return retryRes.json();
+        }
         window.location.href = "/login";
         throw new Error("Unauthorized");
       }
@@ -241,8 +313,10 @@ export async function fetchAnalyticsHistogram(startDate: string, endDate: string
 
 export async function downloadCSV(startDate: string, endDate: string, side?: string, pnlSign?: string, strategyId?: string, marketId?: string): Promise<void> {
   const token = getToken();
+  const csrfToken = getCsrfToken();
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
 
   const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
   if (side) params.set("side", side);
@@ -262,11 +336,14 @@ export async function downloadCSV(startDate: string, endDate: string, side?: str
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `trades_${startDate}_${endDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `trades_${startDate}_${endDate}.csv`;
+      a.click();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   } finally {
     clearTimeout(timer);
   }
@@ -274,8 +351,10 @@ export async function downloadCSV(startDate: string, endDate: string, side?: str
 
 export async function downloadJSON(startDate: string, endDate: string, side?: string, pnlSign?: string, strategyId?: string, marketId?: string): Promise<void> {
   const token = getToken();
+  const csrfToken = getCsrfToken();
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
 
   const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
   if (side) params.set("side", side);
@@ -295,11 +374,14 @@ export async function downloadJSON(startDate: string, endDate: string, side?: st
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `trades_${startDate}_${endDate}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `trades_${startDate}_${endDate}.json`;
+      a.click();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   } finally {
     clearTimeout(timer);
   }
@@ -316,8 +398,10 @@ export async function fetchRecentTrades(marketId: string, limit = 100): Promise<
 
 // Admin Config API
 export async function fetchAdminConfigs(category?: string): Promise<SystemConfigListResponse> {
-  const params = category ? `?category=${category}` : "";
-  return request<SystemConfigListResponse>(`/api/admin/config${params}`);
+  const searchParams = new URLSearchParams();
+  if (category) searchParams.set("category", category);
+  const qs = searchParams.toString();
+  return request<SystemConfigListResponse>(`/api/admin/config${qs ? `?${qs}` : ""}`);
 }
 
 export async function fetchAdminConfig(key: string, unmask = false): Promise<SystemConfig> {

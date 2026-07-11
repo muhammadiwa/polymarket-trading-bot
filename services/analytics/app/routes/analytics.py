@@ -36,7 +36,7 @@ async def get_pnl(
     group_by: str = Query("day", pattern="^(day|week|month)$"),
     strategy_id: Optional[str] = Query(None),
     market_id: Optional[str] = Query(None),
-    _user: dict = Depends(verify_jwt),
+    user: dict = Depends(verify_jwt),
 ):
     start = _parse_date(start_date, "start_date")
     end = _parse_date(end_date, "end_date")
@@ -57,7 +57,7 @@ async def get_metrics(
     end_date: str = Query(..., description="End date (ISO 8601)"),
     strategy_id: Optional[str] = Query(None),
     market_id: Optional[str] = Query(None),
-    _user: dict = Depends(verify_jwt),
+    user: dict = Depends(verify_jwt),
 ):
     start = _parse_date(start_date, "start_date")
     end = _parse_date(end_date, "end_date")
@@ -78,7 +78,7 @@ async def get_risk(
     end_date: str = Query(..., description="End date (ISO 8601)"),
     strategy_id: Optional[str] = Query(None),
     market_id: Optional[str] = Query(None),
-    _user: dict = Depends(verify_jwt),
+    user: dict = Depends(verify_jwt),
 ):
     start = _parse_date(start_date, "start_date")
     end = _parse_date(end_date, "end_date")
@@ -99,7 +99,7 @@ async def get_summary(
     end_date: str = Query(..., description="End date (ISO 8601)"),
     strategy_id: Optional[str] = Query(None),
     market_id: Optional[str] = Query(None),
-    _user: dict = Depends(verify_jwt),
+    user: dict = Depends(verify_jwt),
 ):
     start = _parse_date(start_date, "start_date")
     end = _parse_date(end_date, "end_date")
@@ -130,7 +130,7 @@ async def get_histogram(
     strategy_id: Optional[str] = Query(None),
     market_id: Optional[str] = Query(None),
     bins: int = Query(20, ge=5, le=100, description="Number of histogram bins"),
-    _user: dict = Depends(verify_jwt),
+    user: dict = Depends(verify_jwt),
 ):
     """Return raw PnL values for frontend histogram binning."""
     start = _parse_date(start_date, "start_date")
@@ -140,7 +140,7 @@ async def get_histogram(
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id)
+        trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id, user_id=user.get("user_id"))
 
     pnls = [str(t["pnl"]) for t in trades]  # #3: Keep as Decimal strings
     return {"pnls": pnls, "count": len(pnls), "bins": bins}
@@ -154,7 +154,7 @@ async def export_trades(
     market_id: Optional[str] = Query(None),
     side: Optional[str] = Query(None, pattern="^(YES|NO)$"),
     pnl_sign: Optional[str] = Query(None, pattern="^(positive|negative|zero)$"),
-    _user: dict = Depends(verify_jwt),
+    user: dict = Depends(verify_jwt),
 ):
     """Stream trades as CSV download."""
     start = _parse_date(start_date, "start_date")
@@ -173,7 +173,7 @@ async def export_trades(
         yield header
 
         async with pool.acquire() as conn:
-            trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id, side, pnl_sign)
+            trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id, side, pnl_sign, user_id=user.get("user_id"))
             for t in trades:
                 ts = t["fill_timestamp"].isoformat() if t.get("fill_timestamp") else ""
                 row = ",".join([
@@ -208,7 +208,7 @@ async def export_trades_json(
     market_id: Optional[str] = Query(None),
     side: Optional[str] = Query(None, pattern="^(YES|NO)$"),
     pnl_sign: Optional[str] = Query(None, pattern="^(positive|negative|zero)$"),
-    _user: dict = Depends(verify_jwt),
+    user: dict = Depends(verify_jwt),
 ):
     """Export trades as JSON array."""
     start = _parse_date(start_date, "start_date")
@@ -222,7 +222,7 @@ async def export_trades_json(
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id, side, pnl_sign)
+        trades = await analytics_repo.get_trades_in_range(conn, start, end, strategy_id, market_id, side, pnl_sign, user_id=user.get("user_id"))
 
     result = []
     for t in trades:
@@ -271,7 +271,7 @@ def _safe_str(val) -> str:
 async def get_anomalies(
     severity: Optional[str] = Query(None, pattern="^(low|medium|high|critical)$"),
     limit: int = Query(50, ge=1, le=200),
-    _user: dict = Depends(verify_jwt),
+    user: dict = Depends(verify_jwt),
 ):
     """Get recent anomaly events."""
     pool = await get_pool()

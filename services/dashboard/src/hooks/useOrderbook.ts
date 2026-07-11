@@ -12,8 +12,8 @@ interface UseOrderbookResult {
 }
 
 export function useOrderbook(marketId: string): UseOrderbookResult {
-  const [orderbook, setOrderbook] = useState<OrderbookData | null>(null);
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [orderbook, setOrderbook] = useState<OrderbookSnapshot | null>(null);
+  const [trades, setTrades] = useState<RecentTrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);

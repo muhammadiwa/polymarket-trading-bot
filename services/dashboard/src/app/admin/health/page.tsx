@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AdminHealthStatus, HealthAlert, ServiceHealth } from "@/types";
 import { fetchAdminHealth } from "@/lib/api";
+import { AdminGuard } from "@/lib/auth/auth-guard";
 
 export default function HealthPage() {
   const [health, setHealth] = useState<AdminHealthStatus | null>(null);
@@ -72,6 +73,7 @@ export default function HealthPage() {
   }
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">System Health</h2>
@@ -196,5 +198,6 @@ export default function HealthPage() {
         </div>
       )}
     </div>
+    </AdminGuard>
   );
 }

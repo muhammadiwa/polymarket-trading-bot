@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Account } from "@/types";
 import { fetchAccounts, deactivateAccount, activateAccount } from "@/lib/api";
+import { AdminGuard } from "@/lib/auth/auth-guard";
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -81,6 +82,7 @@ export default function AccountsPage() {
   };
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -234,5 +236,6 @@ export default function AccountsPage() {
         </div>
       )}
     </div>
+    </AdminGuard>
   );
 }

@@ -18,4 +18,9 @@ CREATE INDEX IF NOT EXISTS idx_opportunities_market_slug ON opportunities (marke
 -- #4: Composite index for cursor pagination (status, timestamp DESC)
 CREATE INDEX IF NOT EXISTS idx_opportunities_status_timestamp ON opportunities (status, timestamp DESC);
 
-SELECT create_hypertable('opportunities', 'timestamp', if_not_exists => TRUE);
+-- Convert to hypertable for time-series optimization (only if TimescaleDB is available)
+DO $$ BEGIN
+    PERFORM create_hypertable('opportunities', 'timestamp', if_not_exists => TRUE);
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;

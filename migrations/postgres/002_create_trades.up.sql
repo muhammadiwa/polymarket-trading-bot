@@ -92,8 +92,12 @@ CREATE TRIGGER trg_trade_no_delete
     EXECUTE FUNCTION prevent_trade_delete();
 
 -- Revoke UPDATE and DELETE from application role and PUBLIC
-REVOKE UPDATE, DELETE ON trades FROM pqap_app;
-REVOKE UPDATE, DELETE ON trades FROM PUBLIC;
+DO $$ BEGIN
+    REVOKE UPDATE, DELETE ON trades FROM pqap_app;
+    REVOKE UPDATE, DELETE ON trades FROM PUBLIC;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
 
 COMMENT ON TABLE trades IS 'Immutable trade history. Append-only. No UPDATE/DELETE permitted.';
 COMMENT ON COLUMN trades.client_order_id IS 'UUID for idempotency — prevents duplicate records.';

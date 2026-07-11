@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { AccountCreateRequest } from "@/types";
 import { createAccount } from "@/lib/api";
+import { AdminGuard } from "@/lib/auth/auth-guard";
 
 export default function NewAccountPage() {
   const router = useRouter();
@@ -13,6 +14,13 @@ export default function NewAccountPage() {
   const [privateKey, setPrivateKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Cleanup sensitive data on unmount
+  useEffect(() => {
+    return () => {
+      setPrivateKey("");
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +57,7 @@ export default function NewAccountPage() {
   };
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Link href="/admin/accounts" className="text-gray-400 hover:text-white">
@@ -124,5 +133,6 @@ export default function NewAccountPage() {
         </div>
       </form>
     </div>
+    </AdminGuard>
   );
 }

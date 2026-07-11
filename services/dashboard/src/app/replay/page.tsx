@@ -38,9 +38,11 @@ export default function ReplayPage() {
     }
     if (sessionIdRef.current) {
       // #3: Delete server session on cleanup
+      const csrfToken = document.cookie.match(/(?:^|;\s*)pqap_csrf=([^;]*)/)?.[1];
       fetch(`/api/replay/${sessionIdRef.current}`, {
         method: "DELETE",
         credentials: "include",
+        headers: csrfToken ? { "X-CSRF-Token": csrfToken } : {},
       }).catch(() => {});
       sessionIdRef.current = null;
       setSessionId(null);
@@ -56,9 +58,20 @@ export default function ReplayPage() {
     const currentSpeed = speedOverride ?? speed;
 
     try {
+      // Get CSRF token
+      const csrfRes = await fetch("/api/auth/csrf");
+      let csrfToken = "";
+      if (csrfRes.ok) {
+        const csrfData = await csrfRes.json();
+        csrfToken = csrfData.csrf_token ?? "";
+      }
+
       const res = await fetch("/api/replay", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({ strategy_id: "default", start_date: startDate, end_date: endDate, speed: currentSpeed }),
       });
@@ -142,9 +155,11 @@ export default function ReplayPage() {
     setSpeed(newSpeed);
     if (playing && sessionIdRef.current) {
       // Update speed on server
+      const csrfToken = document.cookie.match(/(?:^|;\s*)pqap_csrf=([^;]*)/)?.[1];
       fetch(`/api/replay/${sessionIdRef.current}/speed?speed=${newSpeed}`, {
         method: "POST",
         credentials: "include",
+        headers: csrfToken ? { "X-CSRF-Token": csrfToken } : {},
       }).catch(() => {});
     }
   }, [playing]);
@@ -184,9 +199,11 @@ export default function ReplayPage() {
     }
 
     try {
+      const csrfToken = document.cookie.match(/(?:^|;\s*)pqap_csrf=([^;]*)/)?.[1];
       const res = await fetch(`/api/replay/${sessionIdRef.current}/step`, {
         method: "POST",
         credentials: "include",
+        headers: csrfToken ? { "X-CSRF-Token": csrfToken } : {},
       });
       const data = await res.json();
       if (data.events) {

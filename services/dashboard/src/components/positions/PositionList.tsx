@@ -6,8 +6,6 @@ import { usePositions } from "@/hooks/usePositions";
 import type { Position } from "@/types";
 import Decimal from "decimal.js";
 
-Decimal.set({ precision: 20 });
-
 function formatPrice(value: string): string {
   try {
     const num = new Decimal(value);

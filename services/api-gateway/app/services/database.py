@@ -1,5 +1,4 @@
 import asyncio
-import gzip
 import logging
 import os
 import time
@@ -17,7 +16,6 @@ class DatabaseService:
 
     def __init__(self):
         self.backup_dir = Path(config.BACKUP_DIR)
-        self.backup_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_backup_path(self, filename: str) -> Path:
         """Get full path for backup file."""
@@ -26,12 +24,13 @@ class DatabaseService:
     def _generate_filename(self) -> str:
         """Generate backup filename with timestamp."""
         now = datetime.now(timezone.utc)
-        return f"pqap_backup_{now.strftime('%Y%m%d_%H%M%S')}.sql.gz"
+        return f"pqap_backup_{now.strftime('%Y%m%d_%H%M%S')}.dump"
 
     async def create_backup(self, triggered_by: str = "manual") -> dict:
         """Create a database backup using pg_dump."""
         from app.db import get_pool
 
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
         filename = self._generate_filename()
         file_path = self._get_backup_path(filename)
         start_time = time.monotonic()
@@ -89,8 +88,8 @@ class DatabaseService:
                 error_msg = stderr.decode() if stderr else "Unknown error"
                 raise Exception(f"pg_dump failed: {error_msg}")
 
-            # Compress and save
-            with gzip.open(file_path, "wb") as f:
+            # pg_dump --format=custom already compresses; write raw output
+            with open(file_path, "wb") as f:
                 f.write(stdout)
 
             # Get file size
@@ -164,59 +163,42 @@ class DatabaseService:
             if not file_path.exists():
                 raise Exception("Backup file not found on disk")
 
-        # Decompress and restore
-        temp_file = file_path.with_suffix("")
-        try:
-            # Decompress
-            with gzip.open(file_path, "rb") as f:
-                dump_data = f.read()
+        # pg_dump --format=custom files are already self-contained; no decompression needed
+        # Parse POSTGRES_URL to avoid exposing credentials in process list
+        from urllib.parse import urlparse
+        parsed = urlparse(config.POSTGRES_URL)
+        pg_host = parsed.hostname or "localhost"
+        pg_port = str(parsed.port or 5432)
+        pg_user = parsed.username or "postgres"
+        pg_dbname = parsed.path.lstrip("/") or "pqap"
 
-            # Write to temporary file
-            with open(temp_file, "wb") as f:
-                f.write(dump_data)
+        # Run pg_restore with PGPASSWORD env var
+        pg_restore_cmd = [
+            "pg_restore",
+            "--clean",
+            "--if-exists",
+            "-h", pg_host,
+            "-p", pg_port,
+            "-U", pg_user,
+            "-d", pg_dbname,
+            str(file_path),
+        ]
 
-            # Parse POSTGRES_URL to avoid exposing credentials in process list
-            from urllib.parse import urlparse
-            parsed = urlparse(config.POSTGRES_URL)
-            pg_host = parsed.hostname or "localhost"
-            pg_port = str(parsed.port or 5432)
-            pg_user = parsed.username or "postgres"
-            pg_dbname = parsed.path.lstrip("/") or "pqap"
+        env = {"PGPASSWORD": parsed.password or ""}
+        process = await asyncio.create_subprocess_exec(
+            *pg_restore_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env={**dict(__import__("os").environ), **env},
+        )
 
-            # Run pg_restore with PGPASSWORD env var
-            pg_restore_cmd = [
-                "pg_restore",
-                "--clean",
-                "--if-exists",
-                "-h", pg_host,
-                "-p", pg_port,
-                "-U", pg_user,
-                "-d", pg_dbname,
-                str(temp_file),
-            ]
+        stdout, stderr = await process.communicate()
 
-            env = {"PGPASSWORD": parsed.password or ""}
-            process = await asyncio.create_subprocess_exec(
-                *pg_restore_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env={**dict(__import__("os").environ), **env},
-            )
+        if process.returncode != 0:
+            error_msg = stderr.decode() if stderr else "Unknown error"
+            raise Exception(f"pg_restore failed: {error_msg}")
 
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                error_msg = stderr.decode() if stderr else "Unknown error"
-                raise Exception(f"pg_restore failed: {error_msg}")
-
-            return {"status": "restored", "backup_id": backup_id}
-
-        except Exception as e:
-            raise
-        finally:
-            # Clean up temp file in all cases
-            if temp_file.exists():
-                temp_file.unlink()
+        return {"status": "restored", "backup_id": backup_id}
 
     async def cleanup_old_data(self, retention_days: int, tables: list[str] = None) -> dict:
         """Clean up old data based on retention policy."""

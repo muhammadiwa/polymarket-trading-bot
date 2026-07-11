@@ -11,6 +11,7 @@ import {
   fetchOverfittingAnalysis,
   runAnalysis,
 } from "@/lib/api";
+import { AdminGuard } from "@/lib/auth/auth-guard";
 
 export default function SuggestionsPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -151,6 +152,7 @@ export default function SuggestionsPage() {
   };
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Link href="/admin" className="text-gray-400 hover:text-white">
@@ -375,5 +377,6 @@ export default function SuggestionsPage() {
         </div>
       )}
     </div>
+    </AdminGuard>
   );
 }

@@ -32,8 +32,14 @@ async def get_trades_in_range(
     market_id: Optional[str] = None,
     side: Optional[str] = None,
     pnl_sign: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> list[dict]:
     """Fetch filled trades in date range with optional filters."""
+    if side and side not in ("YES", "NO"):
+        raise ValueError(f"Invalid side: {side}")
+    if pnl_sign and pnl_sign not in ("positive", "negative", "zero"):
+        raise ValueError(f"Invalid pnl_sign: {pnl_sign}")
+
     conditions = ["fill_timestamp BETWEEN $1 AND $2", "fill_status IN ('FILLED', 'PARTIAL_FILL')"]
     params: list = [start_date, end_date]
     idx = 3
@@ -49,6 +55,10 @@ async def get_trades_in_range(
     if side:
         conditions.append(f"side = ${idx}")
         params.append(side)
+        idx += 1
+    if user_id:
+        conditions.append(f"user_id = ${idx}")
+        params.append(user_id)
         idx += 1
     # pnl_sign: SQL filter for efficiency
     if pnl_sign == "positive":

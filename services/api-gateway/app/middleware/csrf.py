@@ -13,6 +13,14 @@ CSRF_COOKIE_NAME = "pqap_csrf"
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
+# Auth endpoints exempt from CSRF — they establish the session/CSRF token itself
+CSRF_EXEMPT_PATHS = {
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/csrf",
+    "/api/auth/refresh",
+}
+
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -26,6 +34,10 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         if not request.url.path.startswith("/api/"):
+            return await call_next(request)
+
+        # Exempt auth endpoints from CSRF (they establish the session)
+        if request.url.path in CSRF_EXEMPT_PATHS:
             return await call_next(request)
 
         header_token = request.headers.get(CSRF_HEADER_NAME)

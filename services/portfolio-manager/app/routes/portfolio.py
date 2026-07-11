@@ -46,7 +46,6 @@ async def update_capital(
     account_id: Optional[str] = Query(None),
     _user: dict = Depends(verify_jwt),
 ):
-    from decimal import Decimal
     total = Decimal(total_capital)
     deployed = Decimal(deployed_capital)
     if total < 0:

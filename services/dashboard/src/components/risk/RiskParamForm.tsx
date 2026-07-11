@@ -5,8 +5,6 @@ import { updateRiskParameters } from "@/lib/api";
 import type { RiskParameterUpdate } from "@/types";
 import Decimal from "decimal.js";
 
-Decimal.set({ precision: 20 });
-
 interface RiskParamFormProps {
   currentValues?: {
     dailyLossLimit?: string;

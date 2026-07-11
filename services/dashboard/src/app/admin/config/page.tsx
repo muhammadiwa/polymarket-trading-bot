@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SystemConfig, ConfigAuditLog } from "@/types";
 import { fetchAdminConfigs, updateAdminConfig, fetchConfigAuditLogs } from "@/lib/api";
+import { AdminGuard } from "@/lib/auth/auth-guard";
 
 const CATEGORIES = [
   { value: "", label: "All Categories" },
@@ -48,10 +49,13 @@ export default function ConfigPage() {
 
   const handleEdit = (config: SystemConfig) => {
     setEditingKey(config.configKey);
+    // Don't load sensitive values into state - show empty field instead
     setEditValue(
-      typeof config.configValue === "object"
-        ? JSON.stringify(config.configValue)
-        : String(config.configValue)
+      config.isSensitive
+        ? ""
+        : typeof config.configValue === "object"
+          ? JSON.stringify(config.configValue)
+          : String(config.configValue)
     );
     setEditReason("");
     setError(null);
@@ -127,6 +131,7 @@ export default function ConfigPage() {
   };
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">
@@ -317,5 +322,6 @@ export default function ConfigPage() {
         </div>
       )}
     </div>
+    </AdminGuard>
   );
 }

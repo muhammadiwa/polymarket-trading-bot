@@ -2,20 +2,10 @@
 
 import { Card } from "@/components/ui/Card";
 import { useRiskStatus } from "@/hooks/useRiskStatus";
+import { formatCurrency } from "@/lib/format";
 import Decimal from "decimal.js";
 
 // #12: Decimal precision is set once in layout.tsx (shared entry point)
-
-function formatCurrency(value: string, decimals = 2): string {
-  try {
-    const num = new Decimal(value);
-    if (num.isNaN()) return "$0.00";
-    const sign = num.isNeg() ? "-" : "";
-    return `${sign}$${num.abs().toFixed(decimals)}`;
-  } catch {
-    return "$0.00";
-  }
-}
 
 function drawdownColor(value: string): string {
   try {

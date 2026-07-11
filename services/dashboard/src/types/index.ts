@@ -160,7 +160,7 @@ export interface SystemConfigListResponse {
 }
 
 export interface SystemConfigUpdate {
-  configValue: any;
+  configValue: string | number | boolean | Record<string, unknown>;
   reason?: string;
   expectedUpdatedAt?: string;
 }
@@ -168,8 +168,8 @@ export interface SystemConfigUpdate {
 export interface ConfigAuditLog {
   id: string;
   configKey: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: string | number | boolean | Record<string, unknown> | null;
+  newValue: string | number | boolean | Record<string, unknown> | null;
   changedBy: string;
   changedAt: string;
   reason: string | null;

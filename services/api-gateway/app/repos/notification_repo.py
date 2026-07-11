@@ -88,10 +88,10 @@ async def update_preferences(
             c_telegram, c_email, c_chat_id, c_email_to,
         )
 
-    updated = await get_preferences(conn)
-    if updated is None:
-        raise ValueError("Failed to load updated preferences")
-    return updated
+        updated = await get_preferences(conn)
+        if updated is None:
+            raise ValueError("Failed to load updated preferences")
+        return updated
 
 
 async def get_history(

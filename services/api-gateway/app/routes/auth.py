@@ -39,6 +39,10 @@ def _hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 
+# Pre-computed dummy hash for timing-attack equalization (avoids per-request hashing cost)
+DUMMY_HASH = pwd_context.hash("dummy_password_to_equalize_timing")
+
+
 @router.post("/login", response_model=LoginResponse)
 async def login(body: LoginRequest, request: Request, response: Response):
     await check_rate_limit_async(body.username)
@@ -52,7 +56,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
 
     if not row:
         # #2: Burn equivalent CPU time to prevent username enumeration via timing
-        pwd_context.hash("dummy_password_to_equalize_timing")
+        _verify_password("dummy_password_to_equalize_timing", DUMMY_HASH)
         record_login_attempt(body.username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

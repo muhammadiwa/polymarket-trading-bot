@@ -5,7 +5,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.db import get_pool
-from app.engine.ab_tester import calculate_significance, simulate_trade_outcome
+from app.engine.ab_tester import calculate_significance
 from app.engine.overfitting_detector import OVERFITTING_THRESHOLD
 from app.middleware.auth import verify_jwt
 from app.models.ab_test import (

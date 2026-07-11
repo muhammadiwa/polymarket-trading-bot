@@ -2,22 +2,29 @@ import os
 import sys
 
 
+def _int_env(key: str, default: int) -> int:
+    try:
+        return int(os.getenv(key, str(default)))
+    except (ValueError, TypeError):
+        return default
+
+
 class Config:
     POSTGRES_URL: str = os.getenv(
         "POSTGRES_URL", "postgres://localhost:5432/pqap"
     )
     JWT_SECRET: str = os.getenv("JWT_SECRET", "")
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRY_HOURS: int = int(os.getenv("AUTH_JWT_EXPIRY", "24"))
-    BCRYPT_COST: int = int(os.getenv("AUTH_BCRYPT_COST", "12"))
+    JWT_EXPIRY_HOURS: int = _int_env("AUTH_JWT_EXPIRY", 24)
+    BCRYPT_COST: int = _int_env("AUTH_BCRYPT_COST", 12)
     CSRF_ENABLED: bool = os.getenv("AUTH_CSRF_ENABLED", "true").lower() == "true"
     API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
-    API_PORT: int = int(os.getenv("API_PORT", "8080"))
-    TRADE_HISTORY_BATCH_SIZE: int = int(os.getenv("TRADE_HISTORY_BATCH_SIZE", "1000"))
-    TRADE_HISTORY_MAX_PAGE_SIZE: int = int(os.getenv("TRADE_HISTORY_MAX_PAGE_SIZE", "100"))
-    TRADE_HISTORY_DEFAULT_PAGE_SIZE: int = int(os.getenv("TRADE_HISTORY_DEFAULT_PAGE_SIZE", "50"))
-    TRADE_HISTORY_EXPORT_TIMEOUT: int = int(os.getenv("TRADE_HISTORY_EXPORT_TIMEOUT", "30"))
-    TRADE_HISTORY_RETENTION_YEARS: int = int(os.getenv("TRADE_HISTORY_RETENTION_YEARS", "7"))
+    API_PORT: int = _int_env("API_PORT", 8080)
+    TRADE_HISTORY_BATCH_SIZE: int = _int_env("TRADE_HISTORY_BATCH_SIZE", 1000)
+    TRADE_HISTORY_MAX_PAGE_SIZE: int = _int_env("TRADE_HISTORY_MAX_PAGE_SIZE", 100)
+    TRADE_HISTORY_DEFAULT_PAGE_SIZE: int = _int_env("TRADE_HISTORY_DEFAULT_PAGE_SIZE", 50)
+    TRADE_HISTORY_EXPORT_TIMEOUT: int = _int_env("TRADE_HISTORY_EXPORT_TIMEOUT", 30)
+    TRADE_HISTORY_RETENTION_YEARS: int = _int_env("TRADE_HISTORY_RETENTION_YEARS", 7)
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
     NATS_URL: str = os.getenv("NATS_URL", "nats://localhost:4222")
     CORS_ORIGINS: list[str] = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]

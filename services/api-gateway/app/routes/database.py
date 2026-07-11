@@ -3,6 +3,7 @@ import secrets
 import time
 from datetime import datetime, timedelta, timezone
 
+from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 from app.db import get_pool
@@ -28,8 +29,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/database", tags=["admin-database"])
 
-# In-memory store for confirmation tokens (in production, use Redis)
-_restore_tokens: dict[str, dict] = {}
+# TTLCache auto-expires confirmation tokens after 300s (5 min)
+_restore_tokens: TTLCache[str, dict] = TTLCache(maxsize=100, ttl=300)
 
 
 @router.post("/backup", response_model=BackupInfoResponse)
@@ -55,10 +56,10 @@ async def create_backup(user: dict = Depends(extract_user)):
             triggered_by=result["triggered_by"],
         )
     except Exception as e:
-        logger.error(f"Backup failed: {e}")
+        logger.error("backup failed", exc_info=e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Backup failed: {str(e)}",
+            detail="Backup failed. Please try again.",
         )
 
 
@@ -162,10 +163,10 @@ async def restore_backup(
         result = await database_service.restore_backup(backup_id)
         return {"status": "restored", "backup_id": backup_id}
     except Exception as e:
-        logger.error(f"Restore failed: {e}")
+        logger.error("restore failed", exc_info=e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Restore failed: {str(e)}",
+            detail="Restore failed. Please try again.",
         )
 
 
@@ -198,10 +199,10 @@ async def cleanup_database(
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Cleanup failed: {e}")
+        logger.error("cleanup failed", exc_info=e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Cleanup failed: {str(e)}",
+            detail="Cleanup failed. Please try again.",
         )
 
 
@@ -222,8 +223,8 @@ async def get_database_stats(user: dict = Depends(extract_user)):
             total_positions=stats["total_positions"],
         )
     except Exception as e:
-        logger.error(f"Failed to get database stats: {e}")
+        logger.error("failed to get database stats", exc_info=e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get database stats: {str(e)}",
+            detail="Unable to retrieve database statistics.",
         )

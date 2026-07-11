@@ -79,8 +79,8 @@ export function useOpportunityFeed(): UseOpportunityFeedResult {
   useEffect(() => {
     const unsubscribe = onOpportunity((opp) => {
       // #3: Always store WS opportunities, filter at render time
-      // Cap at 1000 entries to prevent memory leaks
-      const MAX_OPPORTUNITIES = 1000;
+      // Cap at 100 entries to prevent memory leaks
+      const MAX_OPPORTUNITIES = 100;
       setOpportunities((prev) => {
         if (prev.some((o) => o.id === opp.id)) return prev;
         const next = [opp, ...prev];

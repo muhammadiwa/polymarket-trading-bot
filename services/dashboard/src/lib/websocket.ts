@@ -79,12 +79,20 @@ export function createWSClient(options: WSClientOptions) {
     ws.onmessage = (event) => {
       try {
         lastMessageTime = Date.now();
-        const raw = JSON.parse(event.data as string);
+        if (typeof event.data !== "string") {
+          console.warn("[WS] Received non-string message, ignoring");
+          return;
+        }
+        const raw = JSON.parse(event.data) as Record<string, unknown>;
         if (raw.type === "ping") {
           ws?.send("pong");
           return;
         }
-        options.onMessage(raw as WSMessage);
+        if (!raw.type || !raw.payload) {
+          console.warn("[WS] Invalid message structure:", raw);
+          return;
+        }
+        options.onMessage(raw as unknown as WSMessage);
       } catch {
         console.warn("[WS] Failed to parse message:", event.data);
       }

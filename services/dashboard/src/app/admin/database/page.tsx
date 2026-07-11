@@ -10,6 +10,7 @@ import {
   cleanupDatabase,
   fetchDatabaseStats,
 } from "@/lib/api";
+import { AdminGuard } from "@/lib/auth/auth-guard";
 
 const ELIGIBLE_TABLES = [
   { name: "system_logs", retention: 90, description: "Application logs" },
@@ -155,6 +156,7 @@ export default function DatabasePage() {
   }
 
   return (
+    <AdminGuard>
     <div className="space-y-8">
       <h2 className="text-xl font-semibold text-white">Database Management</h2>
 
@@ -352,5 +354,6 @@ export default function DatabasePage() {
         </div>
       </div>
     </div>
+    </AdminGuard>
   );
 }

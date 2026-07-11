@@ -58,10 +58,15 @@ async def _authenticate_ws(websocket: WebSocket) -> dict | None:
 
     try:
         payload = jwt.decode(token, config.JWT_SECRET, algorithms=[config.JWT_ALGORITHM], options={"verify_exp": True})
-        return payload
     except JWTError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
         return None
+
+    required = {"user_id", "username", "role"}
+    if not required.issubset(payload.keys()):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token claims")
+        return None
+    return payload
 
 
 def _transform_risk_state_to_status(state: dict) -> dict:

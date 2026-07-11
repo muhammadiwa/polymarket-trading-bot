@@ -176,6 +176,8 @@ class PostgresRepo(StoragePort):
             return count
 
     async def init_tables(self) -> None:
+        # NOTE: CREATE TABLE IF NOT EXISTS at startup is a bootstrapping convenience.
+        # This should be replaced with Alembic migrations for production use.
         if self._pool is None:
             raise RuntimeError("Database pool not initialized")
         async with self._pool.acquire() as conn:

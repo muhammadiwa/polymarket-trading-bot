@@ -47,8 +47,8 @@ class UserResponse(BaseModel):
 
 
 @router.post("/users", response_model=UserResponse)
-async def create_user(body: CreateUserRequest, request: dict = Depends(extract_user)):
-    require_admin(request)
+async def create_user(body: CreateUserRequest, user: dict = Depends(extract_user)):
+    require_admin(user)
 
     if body.role not in ("admin", "viewer"):
         raise HTTPException(
@@ -77,8 +77,8 @@ async def create_user(body: CreateUserRequest, request: dict = Depends(extract_u
 
 
 @router.get("/users", response_model=list[UserResponse])
-async def list_users(request: dict = Depends(extract_user)):
-    require_admin(request)
+async def list_users(user: dict = Depends(extract_user)):
+    require_admin(user)
 
     pool = await get_pool()
     async with pool.acquire() as conn:

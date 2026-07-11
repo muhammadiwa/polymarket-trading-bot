@@ -1,10 +1,11 @@
 import json
 import logging
+import re
 import time
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
-from collections import defaultdict
 
 import nats
 import redis.asyncio as aioredis
@@ -13,23 +14,21 @@ from pydantic import BaseModel, field_validator
 
 from app.config import config
 from app.db import get_pool
+from app.middleware.auth import extract_user, require_admin
 from app.metrics import (
+    PORTFOLIO_CROSS_ACCOUNT_LATENCY,
+    PORTFOLIO_CROSS_ACCOUNT_QUERIES_TOTAL,
     RISK_ACTION_LATENCY,
     RISK_ACTIONS_TOTAL,
+    RISK_LIMITS_UPDATES_TOTAL,
     RISK_PARAM_CHANGES_TOTAL,
+    RISK_PER_ACCOUNT_LIMIT_CHECKS_TOTAL,
 )
-from app.middleware.auth import extract_user, require_admin
 from app.models.risk_limits import (
-    RiskLimitsResponse,
-    RiskLimitsUpdate,
     AccountRiskSummary,
     CrossAccountRiskResponse,
-)
-from app.metrics import (
-    RISK_LIMITS_UPDATES_TOTAL,
-    RISK_PER_ACCOUNT_LIMIT_CHECKS_TOTAL,
-    PORTFOLIO_CROSS_ACCOUNT_QUERIES_TOTAL,
-    PORTFOLIO_CROSS_ACCOUNT_LATENCY,
+    RiskLimitsResponse,
+    RiskLimitsUpdate,
 )
 
 logger = logging.getLogger(__name__)
@@ -281,7 +280,7 @@ async def emergency_stop(
     r = await _get_redis()
 
     # #11: Rate limit emergency stop per user
-    user_id = user.get("sub", "unknown")
+    user_id = user.get("user_id", "unknown")
     _check_emergency_rate_limit(user_id)
 
     try:
@@ -491,17 +490,7 @@ async def update_parameters(
 
         now = datetime.now(timezone.utc).isoformat()
 
-        # #2: Use Lua script for atomic parameter update
-        updates = json.dumps(changes | {"updated_at": now})
-        await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "3600")
-
-        elapsed = (time.monotonic() - start) * 1000
-        RISK_PARAM_CHANGES_TOTAL.inc()
-        RISK_ACTION_LATENCY.observe(elapsed)
-
-        logger.info("Risk parameters updated: %s", changes)
-
-        # #10: Return 500 on PostgreSQL persistence failure
+        # #10: Persist to PostgreSQL BEFORE Redis to ensure consistency on failure
         try:
             pool = await get_pool()
             async with pool.acquire() as conn:
@@ -521,6 +510,16 @@ async def update_parameters(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Operation partially completed. Please try again.",
             )
+
+        # #2: Use Lua script for atomic parameter update
+        updates = json.dumps(changes | {"updated_at": now})
+        await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "3600")
+
+        elapsed = (time.monotonic() - start) * 1000
+        RISK_PARAM_CHANGES_TOTAL.inc()
+        RISK_ACTION_LATENCY.observe(elapsed)
+
+        logger.info("Risk parameters updated: %s", changes)
 
         # #7: Publish NATS command
         nc = await _get_nats()
@@ -663,8 +662,6 @@ async def update_risk_limits(
         ]
 
         # Adjust parameter indices for updates (start from $6)
-        # Use regex to avoid cascading replacement issues
-        import re
         adjusted_updates = []
         for i, update in enumerate(updates):
             adjusted = re.sub(r'\$(\d+)', lambda m: f'${int(m.group(1)) + 5}', update)

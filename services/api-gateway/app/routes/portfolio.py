@@ -1,3 +1,4 @@
+import logging
 import time
 from datetime import datetime, timezone
 
@@ -10,9 +11,31 @@ from app.models.portfolio import PortfolioOverview, Position
 from app.models.risk_limits import AccountPortfolioSummary, CrossAccountPortfolioResponse
 from app.metrics import PORTFOLIO_QUERY_LATENCY, PORTFOLIO_QUERY_TOTAL, POSITION_QUERY_LATENCY, POSITION_QUERY_TOTAL
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["portfolio"])
 
 HTTP_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+
+# Module-level HTTP client with lifecycle management
+_http_client: httpx.AsyncClient | None = None
+
+
+async def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=HTTP_TIMEOUT)
+    return _http_client
+
+
+async def close_http_client() -> None:
+    global _http_client
+    if _http_client is not None:
+        try:
+            await _http_client.aclose()
+        except Exception:
+            logger.warning("Failed to close portfolio HTTP client")
+        _http_client = None
 
 
 @router.get("/portfolio/overview", response_model=PortfolioOverview)
@@ -20,10 +43,10 @@ async def get_portfolio_overview(_user: dict = Depends(verify_jwt)):
     start = time.monotonic()
 
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            resp = await client.get(f"{config.PORTFOLIO_SERVICE_URL}/portfolio/overview")
-            resp.raise_for_status()
-            overview = PortfolioOverview(**resp.json())
+        client = await _get_http_client()
+        resp = await client.get(f"{config.PORTFOLIO_SERVICE_URL}/portfolio/overview")
+        resp.raise_for_status()
+        overview = PortfolioOverview(**resp.json())
     except httpx.HTTPError:
         overview = PortfolioOverview(
             totalCapital="0.00000000",
@@ -45,10 +68,10 @@ async def get_positions(_user: dict = Depends(verify_jwt)):
     start = time.monotonic()
 
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            resp = await client.get(f"{config.POSITION_SERVICE_URL}/positions")
-            resp.raise_for_status()
-            positions = [Position(**p) for p in resp.json()]
+        client = await _get_http_client()
+        resp = await client.get(f"{config.POSITION_SERVICE_URL}/positions")
+        resp.raise_for_status()
+        positions = [Position(**p) for p in resp.json()]
     except httpx.HTTPError:
         positions = []
 
@@ -65,11 +88,11 @@ async def get_cross_account_portfolio(_user: dict = Depends(verify_jwt)):
     start = time.monotonic()
 
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            resp = await client.get(f"{config.PORTFOLIO_SERVICE_URL}/portfolio/cross-account")
-            resp.raise_for_status()
-            data = resp.json()
-            result = CrossAccountPortfolioResponse(**data)
+        client = await _get_http_client()
+        resp = await client.get(f"{config.PORTFOLIO_SERVICE_URL}/portfolio/cross-account")
+        resp.raise_for_status()
+        data = resp.json()
+        result = CrossAccountPortfolioResponse(**data)
     except httpx.HTTPError:
         result = CrossAccountPortfolioResponse(
             total_capital="0.00000000",
@@ -93,10 +116,10 @@ async def get_account_portfolio_summaries(_user: dict = Depends(verify_jwt)):
     start = time.monotonic()
 
     try:
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-            resp = await client.get(f"{config.PORTFOLIO_SERVICE_URL}/portfolio/accounts")
-            resp.raise_for_status()
-            result = [AccountPortfolioSummary(**a) for a in resp.json()]
+        client = await _get_http_client()
+        resp = await client.get(f"{config.PORTFOLIO_SERVICE_URL}/portfolio/accounts")
+        resp.raise_for_status()
+        result = [AccountPortfolioSummary(**a) for a in resp.json()]
     except httpx.HTTPError:
         result = []
 

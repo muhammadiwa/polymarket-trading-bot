@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchPositions } from "@/lib/api";
 import { useWSContext } from "@/lib/ws-context";
+import type { WSStatus } from "@/lib/websocket";
 import type { Position } from "@/types";
 
 interface UsePositionsResult {
   data: Position[];
   loading: boolean;
   error: string | null;
-  wsStatus: "connecting" | "connected" | "disconnected";
+  wsStatus: WSStatus;
 }
 
 export function usePositions(): UsePositionsResult {

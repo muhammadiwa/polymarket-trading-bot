@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchPortfolioOverview } from "@/lib/api";
 import { useWSContext } from "@/lib/ws-context";
+import type { WSStatus } from "@/lib/websocket";
 import type { PortfolioOverview } from "@/types";
 
 interface UsePortfolioResult {
   data: PortfolioOverview | null;
   loading: boolean;
   error: string | null;
-  wsStatus: "connecting" | "connected" | "disconnected";
+  wsStatus: WSStatus;
 }
 
 export function usePortfolio(): UsePortfolioResult {

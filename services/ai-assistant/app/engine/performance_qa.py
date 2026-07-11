@@ -25,6 +25,9 @@ async def answer_question(
     user_id: str = "",
 ) -> dict:
     """Answer a performance question with verified data."""
+    if not user_id or not user_id.strip():
+        raise ValueError("user_id is required")
+
     start_time = time.time()
 
     # Detect intent
@@ -38,7 +41,7 @@ async def answer_question(
 
     async with pool.acquire() as conn:
         if category in ("pnl", "win_rate", "trade_count"):
-            summary = await trade_repo.get_pnl_summary(conn, "", period)
+            summary = await trade_repo.get_pnl_summary(conn, user_id, period)
             data_points = _format_pnl_summary(summary)
         elif category == "strategy":
             strategies = await trade_repo.get_pnl_by_strategy(conn, period)
@@ -52,7 +55,7 @@ async def answer_question(
             else:
                 data_points = [{"label": "Note", "value": "No specific market identified in question"}]
         else:
-            summary = await trade_repo.get_pnl_summary(conn, "", period)
+            summary = await trade_repo.get_pnl_summary(conn, user_id, period)
             data_points = _format_pnl_summary(summary)
 
     # Generate answer

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
@@ -78,13 +79,13 @@ async def ask_question(
         result = await answer_question(pool=await get_pool(), llm=llm, question=request.question, user_id=user_id)
     except httpx.TimeoutException:
         logger.warning("llm timeout", extra={"user_id": user_id})
-        raise HTTPException(status_code=504, detail="LLM request timed out. Please try again.")
+        raise HTTPException(status_code=504, detail="Request timed out. Please try again.")
     except httpx.HTTPStatusError as e:
         logger.error("llm http error", extra={"status": e.response.status_code, "user_id": user_id})
-        raise HTTPException(status_code=502, detail="LLM service error. Please try again.")
+        raise HTTPException(status_code=502, detail="Service temporarily unavailable. Please try again.")
     except ValueError as e:
         logger.error("llm value error", extra={"error": str(e), "user_id": user_id})
-        raise HTTPException(status_code=502, detail="LLM returned invalid response. Please try again.")
+        raise HTTPException(status_code=502, detail="Invalid response received. Please try again.")
     except Exception as e:
         logger.error("unexpected error", extra={"error": str(e), "user_id": user_id}, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error.")
@@ -121,6 +122,11 @@ async def explain_trade_endpoint(
     user: dict = Depends(verify_jwt),
 ):
     """Explain why a specific trade was made."""
+    try:
+        uuid.UUID(trade_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid trade_id format (must be UUID)")
+
     user_id = user.get("user_id")
     if not user_id:
         raise HTTPException(status_code=400, detail="Missing user_id in token")
@@ -132,13 +138,13 @@ async def explain_trade_endpoint(
         result = await explain_trade(pool=await get_pool(), llm=llm, trade_id=trade_id)
     except httpx.TimeoutException:
         logger.warning("llm timeout", extra={"trade_id": trade_id})
-        raise HTTPException(status_code=504, detail="LLM request timed out. Please try again.")
+        raise HTTPException(status_code=504, detail="Request timed out. Please try again.")
     except httpx.HTTPStatusError as e:
         logger.error("llm http error", extra={"status": e.response.status_code, "trade_id": trade_id})
-        raise HTTPException(status_code=502, detail="LLM service error. Please try again.")
+        raise HTTPException(status_code=502, detail="Service temporarily unavailable. Please try again.")
     except ValueError as e:
         logger.error("llm value error", extra={"error": str(e), "trade_id": trade_id})
-        raise HTTPException(status_code=502, detail="LLM returned invalid response. Please try again.")
+        raise HTTPException(status_code=502, detail="Invalid response received. Please try again.")
     except Exception as e:
         logger.error("unexpected error", extra={"error": str(e), "trade_id": trade_id}, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error.")

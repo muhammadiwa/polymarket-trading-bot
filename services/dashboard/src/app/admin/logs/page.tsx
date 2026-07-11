@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SystemLog, LogQueryParams } from "@/types";
 import { fetchAdminLogs, fetchLogServices } from "@/lib/api";
+import { AdminGuard } from "@/lib/auth/auth-guard";
 
 const LOG_LEVELS = [
   { value: "", label: "All Levels" },
@@ -92,6 +93,7 @@ export default function LogsPage() {
   };
 
   return (
+    <AdminGuard>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">System Logs</h2>
@@ -261,5 +263,6 @@ export default function LogsPage() {
         </div>
       )}
     </div>
+    </AdminGuard>
   );
 }

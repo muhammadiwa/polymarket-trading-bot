@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { AdminGuard } from "@/lib/auth/auth-guard";
 
 export default function AdminPage() {
   return (
+    <AdminGuard>
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       <Link
         href="/admin/config"
@@ -96,5 +98,6 @@ export default function AdminPage() {
         <p className="text-gray-400">Coming soon - Manage user accounts and roles</p>
       </div>
     </div>
+    </AdminGuard>
   );
 }
