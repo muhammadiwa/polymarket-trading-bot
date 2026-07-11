@@ -24,6 +24,17 @@ ANOMALY_CHECK_LATENCY = Histogram("pqap_anomaly_check_latency_ms", "Anomaly chec
 ANOMALY_ALERTS_SENT = Counter("pqap_anomaly_alerts_sent_total", "Anomaly alerts sent")
 
 
+# Persistent NATS connection for anomaly publishing
+_nc: nats.NATS | None = None
+
+
+async def _get_nats() -> nats.NATS:
+    global _nc
+    if _nc is None or _nc.is_closed:
+        _nc = await nats.connect(config.NATS_URL)
+    return _nc
+
+
 async def anomaly_check_loop():
     """Background task: check for anomalies every ANOMALY_CHECK_INTERVAL seconds."""
     await asyncio.sleep(10)  # Initial delay for service startup
@@ -41,10 +52,7 @@ async def anomaly_check_loop():
                 anomalies = await analytics_repo.detect_anomalies(conn, thresholds)
 
                 if anomalies:
-                    # #1: Single NATS connection for all anomalies in this batch
-                    nc = None
-                    try:
-                        nc = await nats.connect(config.NATS_URL)
+                    nc = await _get_nats()
                         for anomaly in anomalies:
                             anomaly_id = await analytics_repo.log_anomaly(conn, anomaly)
                             if anomaly_id:
@@ -83,13 +91,6 @@ async def anomaly_check_loop():
                                 ANOMALY_ALERTS_SENT.inc()
                     except Exception as e:
                         logger.error("failed to publish anomaly alert", exc_info=e)
-                    finally:
-                        # #2: Guarantee connection close
-                        if nc:
-                            try:
-                                await nc.close()
-                            except Exception:
-                                pass
 
         except Exception as e:
             logger.error("anomaly check failed", exc_info=e)
@@ -110,6 +111,11 @@ async def lifespan(app: FastAPI):
     logger.info("analytics service started")
     yield
     task.cancel()
+    # Close persistent NATS connection
+    global _nc
+    if _nc and not _nc.is_closed:
+        await _nc.close()
+        _nc = None
     await close_pool()
     logger.info("analytics service stopped")
 

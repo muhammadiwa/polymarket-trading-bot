@@ -84,8 +84,8 @@ export default function DatabasePage() {
       await createBackup();
       setSuccess("Backup created successfully");
       loadData();
-    } catch (err: any) {
-      setError(err.message || "Backup failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Backup failed");
     } finally {
       setBacking(false);
     }

@@ -34,7 +34,7 @@ RATE_LIMIT_MAX_ENTRIES = 10000  # #15: Cap memory usage
 # For single-worker deployments this is correct and avoids Redis dependency
 # for the auth path.
 
-_RATE_LIMIT_EVICTION_INTERVAL = 300
+_RATE_LIMIT_EVICTION_INTERVAL = 60  # Evict every 60 seconds
 _rate_limit_store: dict[str, list[float]] = {}
 _rate_limit_last_eviction: float = 0.0
 _rate_limit_locks: dict[str, Lock] = {}
@@ -42,12 +42,12 @@ _eviction_lock = Lock()
 
 
 async def _evict_stale_rate_limit_entries() -> None:
+    """Evict stale rate limit entries and enforce max entries cap."""
     now = time.time()
     global _rate_limit_last_eviction
     if now - _rate_limit_last_eviction < _RATE_LIMIT_EVICTION_INTERVAL:
         return
     async with _eviction_lock:
-        # Double-check after acquiring lock
         if now - _rate_limit_last_eviction < _RATE_LIMIT_EVICTION_INTERVAL:
             return
         _rate_limit_last_eviction = now
@@ -59,6 +59,16 @@ async def _evict_stale_rate_limit_entries() -> None:
         for k in stale_keys:
             del _rate_limit_store[k]
             _rate_limit_locks.pop(k, None)
+
+        # Enforce max entries cap by removing oldest entries
+        if len(_rate_limit_store) > RATE_LIMIT_MAX_ENTRIES:
+            sorted_keys = sorted(
+                _rate_limit_store.keys(),
+                key=lambda k: max(_rate_limit_store[k]) if _rate_limit_store[k] else 0
+            )
+            for k in sorted_keys[:len(_rate_limit_store) - RATE_LIMIT_MAX_ENTRIES]:
+                del _rate_limit_store[k]
+                _rate_limit_locks.pop(k, None)
 
 
 def create_jwt(user_id: str, username: str, role: str) -> str:
