@@ -145,7 +145,7 @@ export interface RecentTrade {
 export interface SystemConfig {
   id: string;
   configKey: string;
-  configValue: any;
+  configValue: string | number | boolean | Record<string, unknown>;
   category: "api_keys" | "risk_defaults" | "notification_settings";
   description: string | null;
   isSensitive: boolean;
@@ -203,7 +203,7 @@ export interface SystemLog {
   service: string;
   requestId: string | null;
   message: string;
-  context: Record<string, any> | null;
+  context: Record<string, unknown> | null;
 }
 
 export interface LogQueryParams {
@@ -372,11 +372,22 @@ export interface BacktestTrade {
   lookaheadWarning: boolean;
 }
 
+export interface BacktestWarning {
+  type: string;
+  message: string;
+}
+
+export interface DailyPnlEntry {
+  date: string;
+  pnl: string;
+  cumulative_pnl: string;
+}
+
 export interface BacktestResults {
   summary: BacktestSummary;
   trades: BacktestTrade[];
-  warnings: any[];
-  dailyPnl?: any[];
+  warnings: BacktestWarning[];
+  dailyPnl?: DailyPnlEntry[];
 }
 
 export interface SweepParameter {

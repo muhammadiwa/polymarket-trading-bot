@@ -154,9 +154,20 @@ export default function ReplayPage() {
       // Start a new session first
       setLoading(true);
       try {
-        const res = await fetch("/api/replay", {
+        // Get CSRF token
+      const csrfRes = await fetch("/api/auth/csrf");
+      let csrfToken = "";
+      if (csrfRes.ok) {
+        const csrfData = await csrfRes.json();
+        csrfToken = csrfData.csrf_token ?? "";
+      }
+
+      const res = await fetch("/api/replay", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+          },
           credentials: "include",
           body: JSON.stringify({ strategy_id: "default", start_date: startDate, end_date: endDate, speed: 1 }),
         });

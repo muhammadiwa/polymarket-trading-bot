@@ -67,10 +67,12 @@ export function createWSClient(options: WSClientOptions) {
       attempt = 0;
       pollingMode = false;
       setStatus("connected");
+      startHeartbeat();
     };
 
     ws.onmessage = (event) => {
       try {
+        lastMessageTime = Date.now();
         const raw = JSON.parse(event.data as string);
         if (raw.type === "ping") {
           ws?.send("pong");
@@ -84,6 +86,7 @@ export function createWSClient(options: WSClientOptions) {
 
     ws.onclose = () => {
       if (closed) return;
+      stopHeartbeat();
       setStatus("disconnected");
       scheduleReconnect();
     };
@@ -92,6 +95,29 @@ export function createWSClient(options: WSClientOptions) {
       // #3: Don't call ws.close() here — browser already closes it and fires onclose
       console.warn("[WS] WebSocket error");
     };
+  }
+
+  // Client-side heartbeat to detect dead connections
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  let lastMessageTime = Date.now();
+
+  function startHeartbeat() {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    lastMessageTime = Date.now();
+    heartbeatTimer = setInterval(() => {
+      if (Date.now() - lastMessageTime > 30000) {
+        // No message received in 30s, connection might be dead
+        console.warn("[WS] No messages received in 30s, reconnecting...");
+        ws?.close();
+      }
+    }, 15000);
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
   }
 
   function scheduleReconnect() {
@@ -109,6 +135,7 @@ export function createWSClient(options: WSClientOptions) {
 
   function close() {
     closed = true;
+    stopHeartbeat();
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
