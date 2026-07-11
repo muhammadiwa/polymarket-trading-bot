@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Decimal from "decimal.js";
-import { WSProvider } from "@/lib/ws-context";
-import { AuthProvider, AuthGuard } from "@/lib/auth/auth-guard";
+import { AuthProvider } from "@/lib/auth/auth-guard";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import "./globals.css";
 
@@ -22,11 +21,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen antialiased">
         <ErrorBoundary>
-          <AuthProvider>
-            <AuthGuard>
-              <WSProvider>{children}</WSProvider>
-            </AuthGuard>
-          </AuthProvider>
+          <AuthProvider>{children}</AuthProvider>
         </ErrorBoundary>
       </body>
     </html>

@@ -20,7 +20,7 @@ from passlib.context import CryptContext
 
 POSTGRES_URL = os.getenv("POSTGRES_URL", "postgres://localhost:5432/pqap")
 DEFAULT_USERNAME = "admin"
-DEFAULT_PASSWORD = "PQAP@dm1n2026!"
+DEFAULT_PASSWORD = "admin"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
@@ -161,10 +161,6 @@ def main():
     parser.add_argument("--reset", action="store_true", help="Drop and recreate tables")
     parser.add_argument("--force", action="store_true", help="Reset password non-interactively if user exists")
     args = parser.parse_args()
-
-    if len(args.password) < 12:
-        print("ERROR: Password must be at least 12 characters")
-        sys.exit(1)
 
     asyncio.run(seed(args.username, args.password, args.reset, args.force))
 

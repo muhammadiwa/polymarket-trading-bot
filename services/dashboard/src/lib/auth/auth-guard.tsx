@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, createContext, useContext, useRef } from "react";
 import { useRouter } from "next/navigation";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+
 interface AuthUser {
   user_id: string;
   username: string;
@@ -39,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
     } finally {
       setUser(null);
       router.push("/login");
@@ -47,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const fetchCsrfToken = useCallback(async (): Promise<string> => {
-    const res = await fetch("/api/auth/csrf");
+    const res = await fetch(`${API_BASE}/api/auth/csrf`, { credentials: "include" });
     if (!res.ok) return "";
     const data = await res.json();
     return data.csrf_token ?? "";
@@ -91,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const tryRefresh = useCallback(async (): Promise<boolean> => {
     try {
-      const res = await fetch("/api/auth/refresh", { method: "POST" });
+      const res = await fetch(`${API_BASE}/api/auth/refresh`, { method: "POST", credentials: "include" });
       if (!res.ok) return false;
       const data = await res.json();
       return !!data.access_token;
@@ -105,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function checkAuth() {
       try {
-        const res = await fetch("/api/auth/me");
+        const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
         if (!res.ok) {
           if (!cancelled) {
             setUser(null);
