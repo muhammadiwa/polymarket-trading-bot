@@ -60,8 +60,8 @@ export default function AccountsPage() {
       await activateAccount(account.id);
       setSuccess(`Account "${account.name}" activated`);
       loadAccounts();
-    } catch (err: any) {
-      setError(err.message || "Failed to activate account");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to activate account");
     }
   };
 
@@ -75,8 +75,8 @@ export default function AccountsPage() {
       setSuccess(`Account "${confirmDeactivate.name}" deactivated`);
       setConfirmDeactivate(null);
       loadAccounts();
-    } catch (err: any) {
-      setError(err.message || "Failed to deactivate account");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to deactivate account");
     }
   };
 

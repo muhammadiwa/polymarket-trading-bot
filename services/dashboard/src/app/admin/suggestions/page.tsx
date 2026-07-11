@@ -70,8 +70,8 @@ export default function SuggestionsPage() {
       await approveSuggestion(id);
       setSuccess("Suggestion approved");
       loadSuggestions();
-    } catch (err: any) {
-      setError(err.message || "Failed to approve suggestion");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to approve suggestion");
     }
   };
 
@@ -89,8 +89,8 @@ export default function SuggestionsPage() {
       setSuccess("Suggestion rejected");
       setConfirmReject(null);
       loadSuggestions();
-    } catch (err: any) {
-      setError(err.message || "Failed to reject suggestion");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to reject suggestion");
     }
   };
 
