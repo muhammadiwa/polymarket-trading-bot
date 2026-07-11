@@ -5,7 +5,9 @@ import secrets
 import time
 from asyncio import Lock
 from datetime import datetime, timedelta, timezone
+from typing import List
 
+from cachetools import TTLCache
 from fastapi import HTTPException, Request, Response, status
 from jose import JWTError, jwt
 
@@ -26,49 +28,16 @@ SESSION_COOKIE_SAMESITE = "lax"
 
 RATE_LIMIT_WINDOW_SECONDS = 60
 RATE_LIMIT_MAX_ATTEMPTS = 5
-RATE_LIMIT_MAX_ENTRIES = 10000  # #15: Cap memory usage
+RATE_LIMIT_MAX_ENTRIES = 10000
 
-# #8: Rate limiter is in-memory (per-process). When running multiple workers
-# behind a load balancer, each worker has its own counter. To get global
-# rate limiting, use a Redis-backed implementation instead.
+# #8: Rate limiter using TTLCache for automatic memory management.
+# TTLCache automatically evicts entries after TTL expires.
 # For single-worker deployments this is correct and avoids Redis dependency
 # for the auth path.
 
-_RATE_LIMIT_EVICTION_INTERVAL = 60  # Evict every 60 seconds
-_rate_limit_store: dict[str, list[float]] = {}
-_rate_limit_last_eviction: float = 0.0
+# TTLCache with max 10000 entries and 60 second TTL
+_rate_limit_store: TTLCache[str, List[float]] = TTLCache(maxsize=RATE_LIMIT_MAX_ENTRIES, ttl=RATE_LIMIT_WINDOW_SECONDS)
 _rate_limit_locks: dict[str, Lock] = {}
-_eviction_lock = Lock()
-
-
-async def _evict_stale_rate_limit_entries() -> None:
-    """Evict stale rate limit entries and enforce max entries cap."""
-    now = time.time()
-    global _rate_limit_last_eviction
-    if now - _rate_limit_last_eviction < _RATE_LIMIT_EVICTION_INTERVAL:
-        return
-    async with _eviction_lock:
-        if now - _rate_limit_last_eviction < _RATE_LIMIT_EVICTION_INTERVAL:
-            return
-        _rate_limit_last_eviction = now
-        window_start = now - RATE_LIMIT_WINDOW_SECONDS
-        stale_keys = [
-            k for k, v in _rate_limit_store.items()
-            if not v or max(v) < window_start
-        ]
-        for k in stale_keys:
-            del _rate_limit_store[k]
-            _rate_limit_locks.pop(k, None)
-
-        # Enforce max entries cap by removing oldest entries
-        if len(_rate_limit_store) > RATE_LIMIT_MAX_ENTRIES:
-            sorted_keys = sorted(
-                _rate_limit_store.keys(),
-                key=lambda k: max(_rate_limit_store[k]) if _rate_limit_store[k] else 0
-            )
-            for k in sorted_keys[:len(_rate_limit_store) - RATE_LIMIT_MAX_ENTRIES]:
-                del _rate_limit_store[k]
-                _rate_limit_locks.pop(k, None)
 
 
 def create_jwt(user_id: str, username: str, role: str) -> str:
@@ -204,6 +173,7 @@ def check_rate_limit(username: str) -> None:
     if username not in _rate_limit_store:
         _rate_limit_store[username] = []
 
+    # Filter attempts within window
     attempts = _rate_limit_store[username]
     _rate_limit_store[username] = [t for t in attempts if t > window_start]
 
@@ -215,28 +185,9 @@ def check_rate_limit(username: str) -> None:
 
 
 def record_login_attempt(username: str) -> None:
-    # #15: Evict if store is too large
-    if len(_rate_limit_store) >= RATE_LIMIT_MAX_ENTRIES:
-        _evict_stale_rate_limit_entries_sync()
     if username not in _rate_limit_store:
         _rate_limit_store[username] = []
     _rate_limit_store[username].append(time.time())
-
-
-def _evict_stale_rate_limit_entries_sync() -> None:
-    """Sync eviction for use in record_login_attempt (no async context)."""
-    now = time.time()
-    global _rate_limit_last_eviction
-    if now - _rate_limit_last_eviction < _RATE_LIMIT_EVICTION_INTERVAL:
-        return
-    _rate_limit_last_eviction = now
-    window_start = now - RATE_LIMIT_WINDOW_SECONDS
-    stale_keys = [
-        k for k, v in _rate_limit_store.items()
-        if not v or max(v) < window_start
-    ]
-    for k in stale_keys:
-        del _rate_limit_store[k]
 
 
 async def check_rate_limit_async(username: str) -> None:
@@ -248,7 +199,6 @@ async def check_rate_limit_async(username: str) -> None:
     # #4: Use setdefault to avoid lock creation race
     lock = _rate_limit_locks.setdefault(username, Lock())
     async with lock:
-        await _evict_stale_rate_limit_entries()
         check_rate_limit(username)
 
 
