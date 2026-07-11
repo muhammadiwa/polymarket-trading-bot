@@ -3,8 +3,8 @@
 import { useState, useCallback } from "react";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { RiskParamForm } from "@/components/risk/RiskParamForm";
-import { triggerEmergencyStop, fetchEmergencyStopToken, pauseTrading, resumeTrading } from "@/lib/api";
-import { useRiskStatus } from "@/hooks/useRiskStatus";
+import { triggerEmergencyStop, fetchEmergencyStopToken, pauseTrading, resumeTrading, fetchRiskStatus } from "@/lib/api";
+import { useWSContext } from "@/lib/ws-context";
 
 type ActionFeedback = {
   type: "success" | "error";
@@ -12,7 +12,20 @@ type ActionFeedback = {
 } | null;
 
 export function QuickActions() {
-  const { data: riskData, refresh } = useRiskStatus();
+  const { riskData } = useWSContext();
+  const [riskStatus, setRiskStatus] = useState(riskData);
+
+  // Use WS data when available, fallback to fetched data
+  const data = riskData || riskStatus;
+
+  const refresh = useCallback(async () => {
+    try {
+      const status = await fetchRiskStatus();
+      setRiskStatus(status);
+    } catch {
+      // Ignore refresh errors
+    }
+  }, []);
   const [showStopModal, setShowStopModal] = useState(false);
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
@@ -76,7 +89,7 @@ export function QuickActions() {
     }
   }, [refresh]);
 
-  const isPaused = riskData?.isPaused ?? false;
+  const isPaused = data?.isPaused ?? false;
 
   return (
     <section className="space-y-4" aria-label="Quick Actions">

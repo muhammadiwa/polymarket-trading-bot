@@ -233,9 +233,10 @@ export default function ConfigPage() {
                 <div>
                   <label className="block text-sm text-gray-400">Value</label>
                   <input
-                    type="text"
+                    type={config.isSensitive ? "password" : "text"}
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
+                    placeholder={config.isSensitive ? "Enter new value to change" : ""}
                     className="mt-1 w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
                   />
                 </div>
