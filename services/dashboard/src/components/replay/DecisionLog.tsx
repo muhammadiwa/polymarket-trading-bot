@@ -28,7 +28,7 @@ export function DecisionLog({ decisions }: DecisionLogProps) {
           <div className="px-4 py-8 text-center text-gray-500 text-sm">No decisions yet</div>
         ) : (
           decisions.map((d, i) => (
-            <div key={i} className="px-4 py-2 grid grid-cols-6 gap-2 text-xs border-b border-white/5">
+            <div key={`${d.timestamp}-${d.market_id}-${i}`} className="px-4 py-2 grid grid-cols-6 gap-2 text-xs border-b border-white/5">
               <span className="font-mono text-gray-400">
                 {d.timestamp ? new Date(d.timestamp).toLocaleTimeString() : "—"}
               </span>

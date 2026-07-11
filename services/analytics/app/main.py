@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import nats
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import Counter, Histogram, make_asgi_app
 
 from app.config import config
@@ -115,6 +116,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Analytics", version="1.0.0", lifespan=lifespan)
 
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:8080"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 
@@ -123,4 +133,14 @@ app.include_router(analytics.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    """Health check with dependency verification."""
+    checks = {"status": "ok"}
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "error"
+        checks["status"] = "degraded"
+    return checks

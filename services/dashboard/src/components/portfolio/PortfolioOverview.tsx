@@ -4,8 +4,6 @@ import { Card } from "@/components/ui/Card";
 import { usePortfolio } from "@/hooks/usePortfolio";
 import Decimal from "decimal.js";
 
-Decimal.set({ precision: 20 });
-
 function formatCurrency(value: string, decimals = 2): string {
   try {
     const num = new Decimal(value);

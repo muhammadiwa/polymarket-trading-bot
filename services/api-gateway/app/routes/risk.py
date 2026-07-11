@@ -61,6 +61,21 @@ async def _get_nats() -> nats.NATS:
 _emergency_rate_limits: dict[str, list[float]] = defaultdict(list)
 EMERGENCY_RATE_LIMIT = 3
 EMERGENCY_RATE_WINDOW = 60.0
+_EMERGENCY_EVICTION_INTERVAL = 300
+_last_emergency_eviction: float = 0.0
+
+
+def _evict_stale_emergency_entries() -> None:
+    """Clean up stale emergency rate limit entries."""
+    global _last_emergency_eviction
+    now = time.monotonic()
+    if now - _last_emergency_eviction < _EMERGENCY_EVICTION_INTERVAL:
+        return
+    _last_emergency_eviction = now
+    window_start = now - EMERGENCY_RATE_WINDOW
+    stale_keys = [k for k, v in _emergency_rate_limits.items() if not any(t > window_start for t in v)]
+    for k in stale_keys:
+        del _emergency_rate_limits[k]
 
 
 def _check_emergency_rate_limit(user_id: str) -> None:
@@ -68,6 +83,7 @@ def _check_emergency_rate_limit(user_id: str) -> None:
     # This is acceptable: rate limits are best-effort and a restart
     # already disrupts the attack surface.  Do NOT switch to wall clock
     # here — monotonic is immune to NTP jumps.
+    _evict_stale_emergency_entries()
     now = time.monotonic()
     window_start = now - EMERGENCY_RATE_WINDOW
     _emergency_rate_limits[user_id] = [

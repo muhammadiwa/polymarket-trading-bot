@@ -55,6 +55,9 @@ export interface SystemHealth {
   executionEngine: ServiceHealth;
   riskManager: ServiceHealth;
   positionManager: ServiceHealth;
+  backtesting?: ServiceHealth;
+  aiOptimizer?: ServiceHealth;
+  accountManager?: ServiceHealth;
   overall: "healthy" | "degraded" | "unhealthy";
   lastUpdated: string;
 }

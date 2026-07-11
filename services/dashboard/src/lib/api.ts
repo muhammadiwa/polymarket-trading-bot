@@ -54,8 +54,12 @@ function getCsrfToken(): string | null {
 }
 
 // Convert camelCase to snake_case for API requests
+// Handles consecutive uppercase correctly (e.g., "ABTestId" -> "ab_test_id")
 function toSnakeCase(str: string): string {
-  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+  return str
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+    .toLowerCase();
 }
 
 function convertKeysToSnakeCase(obj: any): any {
