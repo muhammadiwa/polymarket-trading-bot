@@ -2,7 +2,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 
 class AnalyzeRequest(BaseModel):
@@ -11,6 +12,8 @@ class AnalyzeRequest(BaseModel):
 
 
 class SuggestionResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     id: str
     strategy_id: str
     pattern_type: str

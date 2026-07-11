@@ -2,7 +2,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 
 class StartABTestRequest(BaseModel):
@@ -10,6 +11,8 @@ class StartABTestRequest(BaseModel):
 
 
 class ABTestResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     id: str
     suggestion_id: str
     strategy_id: str
@@ -32,6 +35,8 @@ class VariantStats(BaseModel):
 
 
 class ABTestResultSummary(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     ab_test_id: str
     control: VariantStats
     treatment: VariantStats
@@ -42,6 +47,8 @@ class ABTestResultSummary(BaseModel):
 
 
 class OverfittingAnalysisResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     suggestion_id: str
     overfitting_score: Optional[Decimal]
     in_sample_win_rate: Optional[Decimal]

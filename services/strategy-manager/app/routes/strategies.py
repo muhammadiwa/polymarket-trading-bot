@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 from uuid import UUID
 
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.db import get_pool

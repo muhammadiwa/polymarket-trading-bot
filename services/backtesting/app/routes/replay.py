@@ -115,7 +115,7 @@ async def stream_events(session_id: str, _user: dict = Depends(verify_jwt)):
 @router.post("/{session_id}/step")
 async def step_forward(session_id: str, _user: dict = Depends(verify_jwt)):
     """Step forward one event (for pause/step mode)."""
-    session = _sessions.get(session_id)
+    session = await _get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Replay session not found")
 
@@ -128,6 +128,7 @@ async def step_forward(session_id: str, _user: dict = Depends(verify_jwt)):
 
     opp = opportunities[idx]
     session["index"] = idx + 1
+    await _save_session(session_id, session)
 
     ts = str(opp.get("detected_at", ""))
     market_id = opp.get("market_id", "")
@@ -168,18 +169,19 @@ async def step_forward(session_id: str, _user: dict = Depends(verify_jwt)):
 @router.post("/{session_id}/speed")
 async def update_speed(session_id: str, speed: int = Query(ge=1, le=10), _user: dict = Depends(verify_jwt)):
     """#2: Update replay speed dynamically."""
-    session = _sessions.get(session_id)
+    session = await _get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Replay session not found")
 
     session["speed"] = speed
+    await _save_session(session_id, session)
     return {"session_id": session_id, "speed": speed}
 
 
 @router.get("/{session_id}/status")
 async def get_status(session_id: str, _user: dict = Depends(verify_jwt)):
     """Get replay session status."""
-    session = _sessions.get(session_id)
+    session = await _get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Replay session not found")
 
@@ -195,7 +197,8 @@ async def get_status(session_id: str, _user: dict = Depends(verify_jwt)):
 @router.delete("/{session_id}")
 async def delete_session(session_id: str, _user: dict = Depends(verify_jwt)):
     """#3: Delete replay session to free resources."""
-    session = _sessions.pop(session_id, None)
+    session = await _get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Replay session not found")
+    await _delete_session(session_id)
     return {"message": "Session deleted"}

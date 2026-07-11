@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AuthGuard } from "@/lib/auth/auth-guard";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { PnLLineChart } from "@/components/charts/PnLLineChart";
 import { PnLHistogram } from "@/components/charts/PnLHistogram";
@@ -45,9 +46,10 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-white">Analytics</h1>
+    <AuthGuard>
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h1 className="text-2xl font-bold text-white">Analytics</h1>
         <div className="flex items-center gap-2 flex-wrap">
           <input
             type="date"
@@ -126,6 +128,7 @@ export default function AnalyticsPage() {
           <StrategyPieChart data={pnlData?.by_strategy ?? []} loading={loading} />
         </div>
       </div>
-    </div>
+      </div>
+    </AuthGuard>
   );
 }

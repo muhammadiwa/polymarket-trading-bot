@@ -17,6 +17,8 @@ async def init_pool():
 async def get_pool() -> asyncpg.Pool:
     if _pool is None:
         await init_pool()
+    if _pool is None:
+        raise RuntimeError("Database pool initialization failed")
     return _pool
 
 

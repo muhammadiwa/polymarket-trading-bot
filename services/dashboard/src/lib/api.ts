@@ -88,9 +88,11 @@ async function request<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise
     if (!res.ok) {
       if (res.status === 401) {
         window.location.href = "/login";
-        return undefined as T;
+        throw new Error("Session expired");
       }
-      throw new Error(`API error: ${res.status} ${res.statusText}`);
+      // Try to parse error body for descriptive message
+      const errorBody = await res.json().catch(() => null);
+      throw new Error(errorBody?.detail ?? `API error: ${res.status} ${res.statusText}`);
     }
     const text = await res.text();
     if (!text) return undefined as T;

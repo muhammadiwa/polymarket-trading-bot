@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db import get_pool
 from app.engine.pattern_analyzer import analyze_trades
+from app.engine.overfitting_detector import detect_overfitting
 from app.middleware.auth import verify_jwt
 from app.models.optimizer import AnalysisResult, SuggestionListResponse, SuggestionResponse
 from app.repos import optimizer_repo

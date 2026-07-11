@@ -7,7 +7,10 @@ const POLL_INTERVAL_AFTER_MAX = 30000;
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("jwt_token");
+  // Read from HttpOnly cookie (set by server) instead of localStorage
+  const cookies = document.cookie.split(";").map((c) => c.trim());
+  const sessionCookie = cookies.find((c) => c.startsWith("pqap_session="));
+  return sessionCookie?.split("=")[1] ?? null;
 }
 
 export type WSStatus = "connecting" | "connected" | "disconnected";
@@ -50,19 +53,17 @@ export function createWSClient(options: WSClientOptions) {
       ws.close();
       ws = null;
     }
-    ws = new WebSocket(`${WS_BASE}/ws/dashboard`);
+    // Pass token as query parameter (backend expects it there)
+    const token = getToken();
+    if (!token) {
+      console.warn("[WS] No JWT token available, deferring connection");
+      setStatus("disconnected");
+      scheduleReconnect();
+      return;
+    }
+    ws = new WebSocket(`${WS_BASE}/ws/dashboard?token=${encodeURIComponent(token)}`);
 
     ws.onopen = () => {
-      // Send token as first frame after connection
-      const token = getToken();
-      // #10: Close connection if no token available
-      if (!token) {
-        console.warn("[WS] No JWT token available, closing connection");
-        ws?.close();
-        setStatus("disconnected");
-        return;
-      }
-      ws?.send(JSON.stringify({ token }));
       attempt = 0;
       pollingMode = false;
       setStatus("connected");

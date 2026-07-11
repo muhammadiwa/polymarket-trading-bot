@@ -23,12 +23,14 @@ router = APIRouter(prefix="/api/admin/logs", tags=["admin-logs"])
 
 def _verify_internal_key(x_internal_key: str = Header(None)) -> bool:
     """Verify internal API key for service-to-service communication."""
+    import hmac
+
     if not config.INTERNAL_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Internal API key not configured",
         )
-    if not x_internal_key or x_internal_key != config.INTERNAL_API_KEY:
+    if not x_internal_key or not hmac.compare_digest(x_internal_key, config.INTERNAL_API_KEY):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid internal API key",

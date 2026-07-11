@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 import httpx
@@ -163,7 +164,7 @@ async def explain_trade_endpoint(
         trade_id=result["trade_id"],
         market_id=result["market_id"] or "unknown",
         side=result["side"] or "unknown",
-        entry_price=result["entry_price"] or 0,
+        entry_price=result["entry_price"] if result["entry_price"] is not None else Decimal(0),
         exit_price=result["exit_price"],
         pnl=result["pnl"],
         explanation=result["explanation"],

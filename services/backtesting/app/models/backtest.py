@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 
 class SimulationConfig(BaseModel):
@@ -20,6 +21,8 @@ class BacktestRequest(BaseModel):
 
 
 class BacktestStatus(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     run_id: str
     status: str
     progress: Optional[str] = None
@@ -29,6 +32,8 @@ class BacktestStatus(BaseModel):
 
 
 class BacktestTrade(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     timestamp: str
     market_id: str
     side: str
@@ -40,6 +45,8 @@ class BacktestTrade(BaseModel):
 
 
 class BacktestSummary(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     total_pnl: str
     total_trades: int
     win_rate: str
@@ -68,6 +75,8 @@ class BacktestReport(BaseModel):
 
 class SweepParameter(BaseModel):
     """#3: Parameter sweep configuration."""
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     name: str  # e.g., "slippage_pct"
     min_value: float
     max_value: float
@@ -76,6 +85,8 @@ class SweepParameter(BaseModel):
 
 class SweepRequest(BaseModel):
     """#3: Request for parameter sweep."""
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     strategy_id: str
     start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")

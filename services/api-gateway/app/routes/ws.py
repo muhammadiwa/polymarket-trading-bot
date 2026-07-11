@@ -119,7 +119,7 @@ async def dashboard_ws(websocket: WebSocket):
     if user is None:
         return
 
-    user_id = user.get("sub", "unknown")
+    user_id = user.get("user_id", user.get("sub", "unknown"))
     user_lock = await _get_user_lock(user_id)
     async with user_lock:
         current = _connection_counts.get(user_id, 0)

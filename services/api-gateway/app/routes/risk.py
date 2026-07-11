@@ -287,7 +287,7 @@ async def emergency_stop(
             "emergency_stop_timestamp": now,
             "updated_at": now,
         })
-        new_state_raw = await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "60")
+        new_state_raw = await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "3600")
 
         # #1: Standalone keys eliminated — emergency fields derived from composite state.
         # #6: Single source of truth: pqap:risk:state contains all fields.
@@ -348,7 +348,7 @@ async def pause_trading(
             "batasi_win_paused": True,
             "updated_at": now,
         })
-        await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "60")
+        await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "3600")
 
         # #6: Standalone key eliminated — derived from composite state.
 
@@ -404,7 +404,7 @@ async def resume_trading(
             "batasi_win_paused": False,
             "updated_at": now,
         })
-        await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "60")
+        await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "3600")
 
         # #6: Standalone keys eliminated — derived from composite state.
 
@@ -477,7 +477,7 @@ async def update_parameters(
 
         # #2: Use Lua script for atomic parameter update
         updates = json.dumps(changes | {"updated_at": now})
-        await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "60")
+        await r.eval(_STATE_UPDATE_LUA, 1, "pqap:risk:state", updates, "3600")
 
         elapsed = (time.monotonic() - start) * 1000
         RISK_PARAM_CHANGES_TOTAL.inc()
@@ -647,12 +647,11 @@ async def update_risk_limits(
         ]
 
         # Adjust parameter indices for updates (start from $6)
+        # Use regex to avoid cascading replacement issues
+        import re
         adjusted_updates = []
         for i, update in enumerate(updates):
-            # Replace $N with $(N+5) to account for the 5 fixed params
-            adjusted = update
-            for j in range(1, idx):
-                adjusted = adjusted.replace(f"${j}", f"${j + 5}")
+            adjusted = re.sub(r'\$(\d+)', lambda m: f'${int(m.group(1)) + 5}', update)
             adjusted_updates.append(adjusted)
 
         query = f"""

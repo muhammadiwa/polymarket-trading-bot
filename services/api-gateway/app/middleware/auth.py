@@ -125,6 +125,11 @@ def extract_user(request: Request) -> dict:
     return validate_jwt_claims(payload)
 
 
+async def verify_jwt(request: Request) -> dict:
+    """FastAPI dependency for JWT verification. Alias for extract_user."""
+    return extract_user(request)
+
+
 def require_admin(user: dict) -> dict:
     if user.get("role") != "admin":
         raise HTTPException(

@@ -51,7 +51,7 @@ export function QuickActions() {
     try {
       await pauseTrading(pauseReason || undefined);
       setFeedback({ type: "success", message: "Trading paused" });
-      setShowPauseInput(false);
+      setShowPauseModal(false);
       setPauseReason("");
       await refresh();
     } catch (err) {

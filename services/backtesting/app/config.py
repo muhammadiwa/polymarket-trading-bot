@@ -4,6 +4,7 @@ import os
 class Config:
     POSTGRES_URL: str = os.getenv("POSTGRES_URL", "postgres://localhost:5432/pqap")
     TIMESCALE_URL: str = os.getenv("TIMESCALE_URL", "postgres://localhost:5432/pqap")
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
     JWT_SECRET: str = os.getenv("JWT_SECRET", "")
     JWT_ALGORITHM: str = "HS256"
     LOG_LEVEL: str = os.getenv("BACKTESTING_LOG_LEVEL", "info")

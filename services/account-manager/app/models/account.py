@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 
 class AccountCreate(BaseModel):
@@ -15,6 +16,8 @@ class AccountUpdate(BaseModel):
 
 
 class AccountResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     id: str
     name: str
     wallet_address: str

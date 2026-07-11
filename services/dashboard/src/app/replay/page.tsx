@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { AuthGuard } from "@/lib/auth/auth-guard";
 import { ReplayControls } from "@/components/replay/ReplayControls";
 import { DecisionLog } from "@/components/replay/DecisionLog";
 
@@ -198,42 +199,44 @@ export default function ReplayPage() {
   }, [cleanup]);
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Replay Mode</h1>
-        <div className="flex items-center gap-3">
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm"
-          />
-          <span className="text-gray-400">to</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm"
-          />
+    <AuthGuard>
+      <div className="space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-white">Replay Mode</h1>
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm"
+            />
+            <span className="text-gray-400">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm"
+            />
+          </div>
         </div>
+
+        <ReplayControls
+          playing={playing}
+          speed={speed}
+          onPlayPause={handlePlayPause}
+          onStep={handleStep}
+          onSpeedChange={handleSpeedChange}
+          disabled={loading}
+        />
+
+        {error && (
+          <div className="rounded-xl border border-[#ff4757]/30 bg-[#ff4757]/10 p-5 text-[#ff4757]">
+            {error}
+          </div>
+        )}
+
+        <DecisionLog decisions={decisions} />
       </div>
-
-      <ReplayControls
-        playing={playing}
-        speed={speed}
-        onPlayPause={handlePlayPause}
-        onStep={handleStep}
-        onSpeedChange={handleSpeedChange}
-        disabled={loading}
-      />
-
-      {error && (
-        <div className="rounded-xl border border-[#ff4757]/30 bg-[#ff4757]/10 p-5 text-[#ff4757]">
-          {error}
-        </div>
-      )}
-
-      <DecisionLog decisions={decisions} />
-    </div>
+    </AuthGuard>
   );
 }
