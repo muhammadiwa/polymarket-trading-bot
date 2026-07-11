@@ -71,14 +71,14 @@ const ServiceCard = memo(function ServiceCard({ service }: { service: ServiceHea
         <div>
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-gray-400">CPU</span>
-            <span className={`text-xs font-mono font-medium ${cpuColor(service.cpuPercent)}`}>
-              {service.cpuPercent.toFixed(1)}%
+            <span className={`text-xs font-mono font-medium ${cpuColor(service.cpuPercent ?? 0)}`}>
+              {(service.cpuPercent ?? 0).toFixed(1)}%
             </span>
           </div>
           <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${cpuBarColor(service.cpuPercent)}`}
-              style={{ width: `${Math.max(0, Math.min(100, service.cpuPercent))}%` }}
+              className={`h-full rounded-full transition-all duration-500 ${cpuBarColor(service.cpuPercent ?? 0)}`}
+              style={{ width: `${Math.max(0, Math.min(100, service.cpuPercent ?? 0))}%` }}
             />
           </div>
         </div>
@@ -86,16 +86,16 @@ const ServiceCard = memo(function ServiceCard({ service }: { service: ServiceHea
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Memory</span>
           <span className="text-xs font-mono font-medium text-white">
-            {service.memoryLimitMB > 0
-              ? `${service.memoryMB.toFixed(0)} / ${service.memoryLimitMB.toFixed(0)} MB`
-              : `${service.memoryMB.toFixed(0)} MB`}
+            {(service.memoryLimitMB ?? 0) > 0
+              ? `${(service.memoryMB ?? 0).toFixed(0)} / ${(service.memoryLimitMB ?? 0).toFixed(0)} MB`
+              : `${(service.memoryMB ?? 0).toFixed(0)} MB`}
           </span>
         </div>
 
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Error Rate</span>
-          <span className={`text-xs font-mono font-medium ${errorRateColor(service.errorRate)}`}>
-            {service.errorRate.toFixed(1)}/min
+          <span className={`text-xs font-mono font-medium ${errorRateColor(service.errorRate ?? 0)}`}>
+            {(service.errorRate ?? 0).toFixed(1)}/min
           </span>
         </div>
 

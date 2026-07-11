@@ -1,3 +1,5 @@
 ﻿node_modules/
 __pycache__/
 services/dashboard/node_modules/
+
+.env.local
