@@ -25,6 +25,7 @@ from app.routes.logs import router as logs_router
 from app.routes.database import router as database_router
 from app.routes.execution_mode import router as execution_mode_router
 from app.routes.orderbook import router as orderbook_router, init_client as init_orderbook_client, close_client as close_orderbook_client
+from app.routes.analytics import router as analytics_router, close_client as close_analytics_client
 from app.middleware.csrf import CSRFMiddleware
 
 logging.basicConfig(
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
     await init_orderbook_client()
     yield
     await close_orderbook_client()
+    await close_analytics_client()
     await close_portfolio_http_client()
     await close_http_client()
     await close_redis_pool()
@@ -92,6 +94,7 @@ app.include_router(opportunities_router)
 app.include_router(notifications_router)
 app.include_router(orderbook_router)
 app.include_router(execution_mode_router)
+app.include_router(analytics_router)
 
 
 @app.get("/health")
